@@ -95,6 +95,36 @@
       animation: pulse 1s infinite;
     }
 
+    .header-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .btn-refresh {
+      background: var(--felt);
+      border: 1px solid var(--border-light);
+      color: var(--text);
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 9px 18px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-refresh:active:not(:disabled) {
+      transform: scale(0.98);
+    }
+
+    .btn-refresh:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
     @keyframes pulse {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.4; }
@@ -636,9 +666,12 @@
   <header>
     <h1>🀄 点数・チップ管理</h1>
     <p id="headerSubtitle">全体順位・履歴</p>
-    <div class="sync-badge syncing" id="syncBadge">
-      <span class="dot"></span>
-      <span id="syncStatusText">接続中…</span>
+    <div class="header-actions">
+      <div class="sync-badge syncing" id="syncBadge">
+        <span class="dot"></span>
+        <span id="syncStatusText">接続中…</span>
+      </div>
+      <button type="button" class="btn-refresh" id="refreshBtn">🔄 最新データに更新</button>
     </div>
   </header>
 
@@ -728,9 +761,17 @@
 
   <div class="toast" id="toast"></div>
 
-  <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore-compat.js"></script>
-  <script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
+    import {
+      getFirestore,
+      doc,
+      setDoc,
+      getDocFromServer,
+      onSnapshot,
+      serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
+
     const firebaseConfig = {
       apiKey: "AIzaSyBnM7koz20XZPxpnCQ6l4BZQLaphWmWqpg",
       authDomain: "dadadadadaisangen.firebaseapp.com",
@@ -741,8 +782,8 @@
       measurementId: "G-MJ2510BFWD"
     };
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
 
     const INITIAL_SCORE = 25000;
     const SEATS = ["東", "南", "西", "北"];
@@ -775,6 +816,7 @@
     let isApplyingRemote = false;
     let hasReceivedSnapshot = false;
     let writeRevisionCounter = 0;
+    let lastLocalWriteRevision = 0;
 
     function formatScore(n) {
       return n.toLocaleString("ja-JP");
@@ -854,7 +896,7 @@
     }
 
     function applyGamePayload(payload) {
-      if (!payload?.players || payload.players.length !== 4) return;
+      if (!payload?.players || payload.players.length !== 4) return false;
 
       state.players = payload.players.map((p, i) => ({
         id: i,
@@ -867,6 +909,7 @@
       state.initialChips = payload.initialChips?.length === 4
         ? payload.initialChips.map(v => (Number.isFinite(v) && v >= 0 ? v : 0))
         : state.players.map(p => p.chips);
+      return true;
     }
 
     function getNextRevision() {
@@ -874,28 +917,98 @@
       return writeRevisionCounter;
     }
 
+    function applyRemoteSnapshot(data, { notify = false, force = false } = {}) {
+      if (!data?.players || data.players.length !== 4) return false;
+
+      const revision = Number(data.revision) || 0;
+      if (!force && revision > 0 && revision <= lastAppliedRevision) return false;
+
+      isApplyingRemote = true;
+      applyGamePayload(data);
+      lastAppliedRevision = revision;
+      writeRevisionCounter = Math.max(writeRevisionCounter, revision);
+      pendingWriteRevision = null;
+      isApplyingRemote = false;
+
+      saveLocalState();
+      renderAll();
+      setSyncStatus("online", `同期中 · 卓 ${tableId}`);
+      if (notify && revision !== lastLocalWriteRevision) {
+        showToast("他端末の更新を反映しました");
+      }
+      return true;
+    }
+
     async function saveToFirestore() {
-      if (!tableDocRef || isApplyingRemote) return;
+      if (!tableDocRef || isApplyingRemote) return false;
 
       const revision = getNextRevision();
       pendingWriteRevision = revision;
+      lastLocalWriteRevision = revision;
       setSyncStatus("syncing", "同期中…");
 
       try {
-        await tableDocRef.set({
+        await setDoc(tableDocRef, {
           ...getGamePayload(),
           revision,
-          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          updatedAt: serverTimestamp()
         });
         lastAppliedRevision = revision;
         pendingWriteRevision = null;
         setSyncStatus("online", `同期中 · 卓 ${tableId}`);
+        return true;
       } catch (err) {
         pendingWriteRevision = null;
         setSyncStatus("offline", "同期エラー");
         showToast("Firestoreへの保存に失敗しました", true);
         console.error(err);
+        return false;
       }
+    }
+
+    async function refreshFromFirestore({ silent = false } = {}) {
+      if (!tableDocRef || !tableId) {
+        if (!silent) showToast("先に卓IDに接続してください", true);
+        return;
+      }
+
+      const btn = document.getElementById("refreshBtn");
+      btn.disabled = true;
+      setSyncStatus("syncing", "更新中…");
+
+      try {
+        const snapshot = await getDocFromServer(tableDocRef);
+        if (!snapshot.exists()) {
+          if (!silent) showToast("卓データが見つかりません", true);
+          setSyncStatus("online", `同期中 · 卓 ${tableId}`);
+          return;
+        }
+
+        applyRemoteSnapshot(snapshot.data(), { force: true });
+        if (!silent) showToast("最新データに更新しました");
+      } catch (err) {
+        setSyncStatus("offline", "更新エラー");
+        if (!silent) showToast("データの取得に失敗しました", true);
+        console.error(err);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function handleSnapshotUpdate(snapshot, uploadIfEmpty) {
+      if (!snapshot.exists()) {
+        if (uploadIfEmpty && !hasReceivedSnapshot) {
+          hasReceivedSnapshot = true;
+          saveToFirestore();
+        }
+        setSyncStatus("online", `同期中 · 卓 ${tableId}`);
+        return;
+      }
+
+      if (snapshot.metadata.hasPendingWrites) return;
+
+      hasReceivedSnapshot = true;
+      applyRemoteSnapshot(snapshot.data(), { notify: true });
     }
 
     function saveState() {
@@ -966,8 +1079,12 @@
       }
 
       stopSnapshotListener();
+      lastAppliedRevision = 0;
+      pendingWriteRevision = null;
+      writeRevisionCounter = 0;
+      lastLocalWriteRevision = 0;
       tableId = sanitized;
-      tableDocRef = db.collection("tables").doc(tableId);
+      tableDocRef = doc(db, "tables", tableId);
       document.getElementById("tableIdInput").value = tableId;
       updateShareUrlDisplay();
 
@@ -980,45 +1097,18 @@
       saveLocalState();
       setSyncStatus("syncing", "接続中…");
 
-      unsubscribeSnapshot = tableDocRef.onSnapshot(
-        async (snapshot) => {
-          if (!snapshot.exists) {
-            if (uploadIfEmpty && !hasReceivedSnapshot) {
-              hasReceivedSnapshot = true;
-              await saveToFirestore();
-            }
-            setSyncStatus("online", `同期中 · 卓 ${tableId}`);
-            return;
-          }
-
-          hasReceivedSnapshot = true;
-          const data = snapshot.data();
-          const revision = data.revision || 0;
-
-          if (revision === lastAppliedRevision) return;
-          if (revision === pendingWriteRevision) {
-            lastAppliedRevision = revision;
-            pendingWriteRevision = null;
-            setSyncStatus("online", `同期中 · 卓 ${tableId}`);
-            return;
-          }
-
-          isApplyingRemote = true;
-          applyGamePayload(data);
-          lastAppliedRevision = revision;
-          writeRevisionCounter = Math.max(writeRevisionCounter, revision);
-          isApplyingRemote = false;
-
-          renderAll();
-          setSyncStatus("online", `同期中 · 卓 ${tableId}`);
-          showToast("他端末の更新を反映しました");
-        },
+      unsubscribeSnapshot = onSnapshot(
+        tableDocRef,
+        { includeMetadataChanges: true },
+        (snapshot) => handleSnapshotUpdate(snapshot, uploadIfEmpty),
         (error) => {
           setSyncStatus("offline", "接続エラー");
           showToast("Firestore接続エラー", true);
           console.error(error);
         }
       );
+
+      refreshFromFirestore({ silent: true });
     }
 
     function getOpponentOptions(playerId) {
@@ -1420,6 +1510,7 @@
       state.history = [];
       lastAppliedRevision = 0;
       pendingWriteRevision = null;
+      lastLocalWriteRevision = 0;
     }
 
     document.getElementById("navTabs").addEventListener("click", e => {
@@ -1430,6 +1521,10 @@
 
     document.getElementById("connectBtn").addEventListener("click", () => {
       connectToTable(document.getElementById("tableIdInput").value);
+    });
+
+    document.getElementById("refreshBtn").addEventListener("click", () => {
+      refreshFromFirestore();
     });
 
     document.getElementById("newTableBtn").addEventListener("click", () => {
