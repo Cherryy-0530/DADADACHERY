@@ -1,0 +1,1500 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>麻雀 点数・チップ管理</title>
+  <style>
+    :root {
+      --bg: #0f1f18;
+      --bg-card: #1a3328;
+      --bg-card-hover: #1f3d30;
+      --felt: #1e4d3a;
+      --border: #2d6b52;
+      --border-light: #3d8a6a;
+      --text: #e8f5ef;
+      --text-muted: #8fb9a8;
+      --accent: #d4af37;
+      --accent-dim: #a8892a;
+      --plus: #6ee7a0;
+      --minus: #f87171;
+      --chip: #c084fc;
+      --input-bg: #0d1814;
+      --radius: 12px;
+      --shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+      --nav-height: 56px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", sans-serif;
+      background: var(--bg);
+      background-image:
+        radial-gradient(ellipse at 50% 0%, rgba(30, 77, 58, 0.5) 0%, transparent 60%),
+        radial-gradient(ellipse at 50% 100%, rgba(15, 31, 24, 0.9) 0%, transparent 50%);
+      color: var(--text);
+      min-height: 100dvh;
+      padding: 16px;
+      padding-bottom: calc(16px + var(--nav-height) + env(safe-area-inset-bottom));
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    header h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+    }
+
+    header p {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .sync-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+      font-size: 0.7rem;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(45, 107, 82, 0.25);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+
+    .sync-badge .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+
+    .sync-badge.online .dot {
+      background: var(--plus);
+      box-shadow: 0 0 6px var(--plus);
+    }
+
+    .sync-badge.offline .dot {
+      background: var(--minus);
+    }
+
+    .sync-badge.syncing .dot {
+      background: var(--accent);
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .view {
+      display: block;
+    }
+
+    .view.hidden {
+      display: none;
+    }
+
+    .nav-tabs {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      background: var(--bg-card);
+      border-top: 1px solid var(--border);
+      padding-bottom: env(safe-area-inset-bottom);
+      z-index: 50;
+      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+    }
+
+    .nav-tab {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      min-height: var(--nav-height);
+      padding: 6px 4px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.65rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: color 0.15s, background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .nav-tab .tab-icon {
+      font-size: 1rem;
+      line-height: 1;
+    }
+
+    .nav-tab .tab-label {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+
+    .nav-tab.active {
+      color: var(--accent);
+      background: rgba(212, 175, 55, 0.08);
+    }
+
+    .nav-tab:active {
+      background: rgba(45, 107, 82, 0.3);
+    }
+
+    .room-form {
+      display: grid;
+      gap: 10px;
+    }
+
+    .room-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: end;
+    }
+
+    .room-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .share-url {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      word-break: break-all;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+
+    .total-bar {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      background: var(--felt);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 16px;
+      margin-bottom: 16px;
+      font-size: 0.8rem;
+    }
+
+    .total-bar span {
+      color: var(--text-muted);
+    }
+
+    .total-bar strong {
+      color: var(--text);
+    }
+
+    .total-bar .ok { color: var(--plus); }
+    .total-bar .ng { color: var(--minus); }
+
+    .ranking-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .ranking-item {
+      display: grid;
+      grid-template-columns: 36px 1fr auto;
+      grid-template-rows: auto auto;
+      gap: 2px 10px;
+      align-items: center;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      transition: border-color 0.2s;
+    }
+
+    .ranking-item.rank-1 {
+      border-color: var(--accent);
+      background: linear-gradient(135deg, rgba(212, 175, 55, 0.12) 0%, var(--bg-card) 60%);
+    }
+
+    .ranking-item .rank {
+      grid-row: 1 / 3;
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: var(--accent);
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .ranking-item .rank.rank-other {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+    }
+
+    .ranking-item .player-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .ranking-item .player-name {
+      font-size: 0.95rem;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .ranking-item .player-seat {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      letter-spacing: 0.06em;
+    }
+
+    .ranking-item .stats {
+      grid-row: 1 / 3;
+      text-align: right;
+    }
+
+    .ranking-item .score-value {
+      font-size: 1.05rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .ranking-item .delta {
+      font-size: 0.8rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .ranking-item .delta.plus { color: var(--plus); }
+    .ranking-item .delta.minus { color: var(--minus); }
+    .ranking-item .delta.zero { color: var(--text-muted); }
+
+    .ranking-item .chip-badge {
+      display: inline-block;
+      margin-top: 4px;
+      font-size: 0.7rem;
+      color: var(--chip);
+      background: rgba(192, 132, 252, 0.12);
+      border-radius: 6px;
+      padding: 2px 6px;
+      font-weight: 600;
+    }
+
+    .player-hero {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+
+    .player-hero .seat {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      letter-spacing: 0.1em;
+      margin-bottom: 8px;
+    }
+
+    .player-hero .name-input {
+      width: 100%;
+      max-width: 240px;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid var(--border);
+      color: var(--text);
+      font-size: 1.2rem;
+      font-weight: 700;
+      text-align: center;
+      padding: 6px 0;
+      margin-bottom: 14px;
+      outline: none;
+    }
+
+    .player-hero .name-input:focus {
+      border-bottom-color: var(--accent);
+    }
+
+    .player-hero .hero-stats {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    .player-hero .hero-stat {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .player-hero .hero-stat-label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    .player-hero .hero-stat-value {
+      font-size: 1.3rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .player-hero .hero-stat-value.plus { color: var(--plus); }
+    .player-hero .hero-stat-value.minus { color: var(--minus); }
+    .player-hero .hero-stat-value.chip { color: var(--chip); }
+
+    .panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .panel h2 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel h2::before {
+      content: "";
+      display: inline-block;
+      width: 3px;
+      height: 14px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+
+    .transfer-form {
+      display: grid;
+      gap: 10px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    select, input[type="number"], input[type="text"] {
+      width: 100%;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 1rem;
+      padding: 10px 12px;
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    select:focus, input:focus {
+      border-color: var(--border-light);
+    }
+
+    input[type="number"] {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .amount-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: end;
+    }
+
+    .btn-clear {
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 10px 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+      margin-top: 18px;
+    }
+
+    .btn-clear:active {
+      background: var(--border);
+      color: var(--text);
+    }
+
+    .quick-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .quick-btn {
+      background: var(--felt);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      padding: 6px 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .quick-btn:active {
+      background: var(--border);
+      color: var(--text);
+    }
+
+    .btn {
+      width: 100%;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 14px;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.15s;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dim) 100%);
+      color: #1a1508;
+    }
+
+    .btn-chip {
+      background: linear-gradient(135deg, #9333ea 0%, #7c3aed 100%);
+      color: #fff;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      padding: 10px;
+    }
+
+    .btn-danger {
+      border-color: var(--minus);
+      color: var(--minus);
+    }
+
+    .btn-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .btn-pay {
+      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+      color: #fff;
+    }
+
+    .btn-receive {
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
+      color: #fff;
+    }
+
+    .history {
+      max-height: 320px;
+      overflow-y: auto;
+      font-size: 0.75rem;
+    }
+
+    .history-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(45, 107, 82, 0.4);
+      gap: 8px;
+    }
+
+    .history-item:last-child {
+      border-bottom: none;
+    }
+
+    .history-item .time {
+      color: var(--text-muted);
+      font-size: 0.65rem;
+      white-space: nowrap;
+    }
+
+    .history-item .desc {
+      flex: 1;
+      text-align: left;
+    }
+
+    .history-item.score .desc { color: var(--text); }
+    .history-item.chip .desc { color: var(--chip); }
+
+    .history-empty {
+      color: var(--text-muted);
+      text-align: center;
+      padding: 16px;
+      font-size: 0.8rem;
+    }
+
+    .initial-chips-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    @media (min-width: 480px) {
+      .initial-chips-grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+
+    .initial-chip-field input {
+      font-size: 0.9rem;
+      padding: 8px 10px;
+    }
+
+    .panel-desc {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin: -6px 0 12px;
+    }
+
+    .actions-bar {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: calc(var(--nav-height) + 12px + env(safe-area-inset-bottom));
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--bg-card);
+      border: 1px solid var(--border-light);
+      color: var(--text);
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      opacity: 0;
+      transition: transform 0.3s, opacity 0.3s;
+      z-index: 100;
+      pointer-events: none;
+      max-width: 90vw;
+      text-align: center;
+    }
+
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    .toast.error {
+      border-color: var(--minus);
+      color: var(--minus);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🀄 点数・チップ管理</h1>
+    <p id="headerSubtitle">全体順位・履歴</p>
+    <div class="sync-badge syncing" id="syncBadge">
+      <span class="dot"></span>
+      <span id="syncStatusText">接続中…</span>
+    </div>
+  </header>
+
+  <!-- ホーム画面 -->
+  <main id="viewHome" class="view">
+    <div class="panel">
+      <h2>卓の共有（Firestore同期）</h2>
+      <p class="panel-desc">同じ卓IDの端末同士で、点数・チップ・履歴がリアルタイムに同期されます。ローカルファイル（file://）で開いた場合は、他端末にも同じ卓IDを入力して接続してください。</p>
+      <div class="room-form">
+        <div class="room-row">
+          <div>
+            <label for="tableIdInput">卓ID</label>
+            <input type="text" id="tableIdInput" maxlength="20" placeholder="例: ABC123" autocomplete="off">
+          </div>
+          <button type="button" class="btn btn-primary" id="connectBtn" style="margin-top:18px;padding:10px 16px;width:auto;">接続</button>
+        </div>
+        <div class="room-actions">
+          <button type="button" class="btn btn-secondary" id="newTableBtn">新しい卓を作成</button>
+          <button type="button" class="btn btn-secondary" id="copyLinkBtn">共有URL / 卓IDをコピー</button>
+        </div>
+        <div class="share-url" id="shareUrlDisplay">共有情報: —</div>
+      </div>
+    </div>
+
+    <div class="total-bar">
+      <div><span>合計持ち点</span> <strong id="totalScore">100,000</strong></div>
+      <div><span>合計チップ</span> <strong id="totalChips">0</strong></div>
+      <div id="balanceStatus"><span>バランス</span> <strong class="ok">OK</strong></div>
+    </div>
+
+    <div class="panel">
+      <h2>順位表</h2>
+      <p class="panel-desc">持ち点の高い順に表示（観戦・確認用）</p>
+      <div class="ranking-list" id="rankingList"></div>
+    </div>
+
+    <div class="panel">
+      <h2>操作履歴</h2>
+      <p class="panel-desc">点数・チップの移動タイムライン</p>
+      <div class="history" id="history">
+        <div class="history-empty">まだ操作がありません</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>チップ初期枚数</h2>
+      <p class="panel-desc">ゲーム開始時に各プレイヤーのチップ枚数を設定します</p>
+      <div class="initial-chips-grid" id="initialChipsGrid"></div>
+      <button type="button" class="btn btn-secondary" id="setInitialChipsBtn">全員に初期チップを設定</button>
+    </div>
+
+    <div class="panel">
+      <h2>設定</h2>
+      <p class="panel-desc">対局データは Firestore に自動同期されます。LocalStorage はオフライン用キャッシュとして併用します。</p>
+      <div class="actions-bar">
+        <button type="button" class="btn btn-secondary" id="undoBtn">1手戻す</button>
+        <button type="button" class="btn btn-secondary btn-danger" id="resetBtn">データを初期化（新しいゲーム）</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- プレイヤー画面（動的生成） -->
+  <main id="viewPlayer" class="view hidden"></main>
+
+  <nav class="nav-tabs" id="navTabs" aria-label="画面切替">
+    <button type="button" class="nav-tab active" data-view="home" aria-current="page">
+      <span class="tab-icon">🏠</span>
+      <span class="tab-label">ホーム</span>
+    </button>
+    <button type="button" class="nav-tab" data-view="0">
+      <span class="tab-icon">🀇</span>
+      <span class="tab-label" id="tabLabel0">P1</span>
+    </button>
+    <button type="button" class="nav-tab" data-view="1">
+      <span class="tab-icon">🀈</span>
+      <span class="tab-label" id="tabLabel1">P2</span>
+    </button>
+    <button type="button" class="nav-tab" data-view="2">
+      <span class="tab-icon">🀉</span>
+      <span class="tab-label" id="tabLabel2">P3</span>
+    </button>
+    <button type="button" class="nav-tab" data-view="3">
+      <span class="tab-icon">🀊</span>
+      <span class="tab-label" id="tabLabel3">P4</span>
+    </button>
+  </nav>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBnM7koz20XZPxpnCQ6l4BZQLaphWmWqpg",
+      authDomain: "dadadadadaisangen.firebaseapp.com",
+      projectId: "dadadadadaisangen",
+      storageBucket: "dadadadadaisangen.firebasestorage.app",
+      messagingSenderId: "372180841965",
+      appId: "1:372180841965:web:f5b742b6a5910bfdd2e3e4",
+      measurementId: "G-MJ2510BFWD"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const INITIAL_SCORE = 25000;
+    const SEATS = ["東", "南", "西", "北"];
+    const CHIP_QUICK = [1, 2, 3, 4, 5];
+    const RANK_MEDALS = ["🥇", "🥈", "🥉", "4"];
+    const STORAGE_KEY = "mahjongScoreApp";
+    const TABLE_ID_KEY = "mahjongTableId";
+    const IS_LOCAL_FILE = window.location.protocol === "file:";
+
+    const state = {
+      players: SEATS.map((seat, i) => ({
+        id: i,
+        seat,
+        name: `プレイヤー${i + 1}`,
+        score: INITIAL_SCORE,
+        chips: 0
+      })),
+      initialChips: [0, 0, 0, 0],
+      history: []
+    };
+
+    const undoStack = [];
+    let currentView = "home";
+    let activePlayerId = 0;
+    let tableId = "";
+    let tableDocRef = null;
+    let unsubscribeSnapshot = null;
+    let lastAppliedRevision = 0;
+    let pendingWriteRevision = null;
+    let isApplyingRemote = false;
+    let hasReceivedSnapshot = false;
+    let writeRevisionCounter = 0;
+
+    function formatScore(n) {
+      return n.toLocaleString("ja-JP");
+    }
+
+    function formatDelta(n) {
+      if (n === 0) return "±0";
+      return n > 0 ? `+${formatScore(n)}` : formatScore(n);
+    }
+
+    function showToast(msg, isError = false) {
+      const toast = document.getElementById("toast");
+      toast.textContent = msg;
+      toast.className = "toast show" + (isError ? " error" : "");
+      clearTimeout(showToast._timer);
+      showToast._timer = setTimeout(() => toast.classList.remove("show"), 2500);
+    }
+
+    function setSyncStatus(status, text) {
+      const badge = document.getElementById("syncBadge");
+      const label = document.getElementById("syncStatusText");
+      badge.className = "sync-badge " + status;
+      label.textContent = text;
+    }
+
+    function getGamePayload() {
+      return {
+        players: state.players,
+        initialChips: state.initialChips,
+        history: state.history
+      };
+    }
+
+    function getLocalPayload() {
+      return {
+        ...getGamePayload(),
+        currentView,
+        tableId
+      };
+    }
+
+    function saveLocalState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(getLocalPayload()));
+        if (tableId) localStorage.setItem(TABLE_ID_KEY, tableId);
+      } catch (_) {
+        showToast("ローカル保存に失敗しました", true);
+      }
+    }
+
+    function loadLocalState() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (!saved) return false;
+
+        const parsed = JSON.parse(saved);
+        if (parsed.players?.length !== 4) return false;
+
+        applyGamePayload(parsed);
+
+        if (parsed.currentView === "home") {
+          currentView = "home";
+        } else {
+          const viewNum = +parsed.currentView;
+          if (Number.isInteger(viewNum) && viewNum >= 0 && viewNum <= 3) {
+            currentView = viewNum;
+          }
+        }
+
+        if (typeof parsed.tableId === "string" && parsed.tableId.trim()) {
+          tableId = sanitizeTableId(parsed.tableId);
+        }
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function applyGamePayload(payload) {
+      if (!payload?.players || payload.players.length !== 4) return;
+
+      state.players = payload.players.map((p, i) => ({
+        id: i,
+        seat: SEATS[i],
+        name: typeof p.name === "string" && p.name.trim() ? p.name.trim() : `プレイヤー${i + 1}`,
+        score: Number.isFinite(p.score) ? p.score : INITIAL_SCORE,
+        chips: Number.isFinite(p.chips) ? p.chips : 0
+      }));
+      state.history = Array.isArray(payload.history) ? payload.history : [];
+      state.initialChips = payload.initialChips?.length === 4
+        ? payload.initialChips.map(v => (Number.isFinite(v) && v >= 0 ? v : 0))
+        : state.players.map(p => p.chips);
+    }
+
+    function getNextRevision() {
+      writeRevisionCounter = Math.max(writeRevisionCounter + 1, Date.now());
+      return writeRevisionCounter;
+    }
+
+    async function saveToFirestore() {
+      if (!tableDocRef || isApplyingRemote) return;
+
+      const revision = getNextRevision();
+      pendingWriteRevision = revision;
+      setSyncStatus("syncing", "同期中…");
+
+      try {
+        await tableDocRef.set({
+          ...getGamePayload(),
+          revision,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        lastAppliedRevision = revision;
+        pendingWriteRevision = null;
+        setSyncStatus("online", `同期中 · 卓 ${tableId}`);
+      } catch (err) {
+        pendingWriteRevision = null;
+        setSyncStatus("offline", "同期エラー");
+        showToast("Firestoreへの保存に失敗しました", true);
+        console.error(err);
+      }
+    }
+
+    function saveState() {
+      saveLocalState();
+      saveToFirestore();
+    }
+
+    function pushUndo() {
+      undoStack.push(JSON.stringify({
+        players: state.players,
+        initialChips: state.initialChips,
+        history: state.history
+      }));
+      if (undoStack.length > 50) undoStack.shift();
+    }
+
+    function escapeHtml(str) {
+      const d = document.createElement("div");
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    function sanitizeTableId(raw) {
+      return String(raw || "")
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9_-]/g, "")
+        .slice(0, 20);
+    }
+
+    function generateTableId() {
+      return Math.random().toString(36).slice(2, 8).toUpperCase();
+    }
+
+    function getShareUrl(id = tableId) {
+      if (IS_LOCAL_FILE) {
+        return `卓ID: ${id}（他端末で同じIDを入力）`;
+      }
+      const url = new URL(window.location.href);
+      url.searchParams.set("room", id);
+      return url.toString();
+    }
+
+    function getShareText(id = tableId) {
+      return IS_LOCAL_FILE ? id : getShareUrl(id);
+    }
+
+    function updateShareUrlDisplay() {
+      const el = document.getElementById("shareUrlDisplay");
+      el.textContent = tableId
+        ? (IS_LOCAL_FILE ? `卓ID: ${tableId}（他端末で同じIDを入力）` : `共有URL: ${getShareUrl()}`)
+        : "共有情報: 卓IDを入力または作成してください";
+    }
+
+    function stopSnapshotListener() {
+      if (unsubscribeSnapshot) {
+        unsubscribeSnapshot();
+        unsubscribeSnapshot = null;
+      }
+      hasReceivedSnapshot = false;
+    }
+
+    function connectToTable(id, { uploadIfEmpty = true } = {}) {
+      const sanitized = sanitizeTableId(id);
+      if (!sanitized) {
+        showToast("卓IDを入力してください", true);
+        return;
+      }
+
+      stopSnapshotListener();
+      tableId = sanitized;
+      tableDocRef = db.collection("tables").doc(tableId);
+      document.getElementById("tableIdInput").value = tableId;
+      updateShareUrlDisplay();
+
+      if (!IS_LOCAL_FILE) {
+        const url = new URL(window.location.href);
+        url.searchParams.set("room", tableId);
+        history.replaceState(null, "", url);
+      }
+
+      saveLocalState();
+      setSyncStatus("syncing", "接続中…");
+
+      unsubscribeSnapshot = tableDocRef.onSnapshot(
+        async (snapshot) => {
+          if (!snapshot.exists) {
+            if (uploadIfEmpty && !hasReceivedSnapshot) {
+              hasReceivedSnapshot = true;
+              await saveToFirestore();
+            }
+            setSyncStatus("online", `同期中 · 卓 ${tableId}`);
+            return;
+          }
+
+          hasReceivedSnapshot = true;
+          const data = snapshot.data();
+          const revision = data.revision || 0;
+
+          if (revision === lastAppliedRevision) return;
+          if (revision === pendingWriteRevision) {
+            lastAppliedRevision = revision;
+            pendingWriteRevision = null;
+            setSyncStatus("online", `同期中 · 卓 ${tableId}`);
+            return;
+          }
+
+          isApplyingRemote = true;
+          applyGamePayload(data);
+          lastAppliedRevision = revision;
+          writeRevisionCounter = Math.max(writeRevisionCounter, revision);
+          isApplyingRemote = false;
+
+          renderAll();
+          setSyncStatus("online", `同期中 · 卓 ${tableId}`);
+          showToast("他端末の更新を反映しました");
+        },
+        (error) => {
+          setSyncStatus("offline", "接続エラー");
+          showToast("Firestore接続エラー", true);
+          console.error(error);
+        }
+      );
+    }
+
+    function getOpponentOptions(playerId) {
+      return state.players
+        .filter(p => p.id !== playerId)
+        .map(p => `<option value="${p.id}">${escapeHtml(p.name)}（${p.seat}）</option>`)
+        .join("");
+    }
+
+    function switchView(view, { skipLocalSave = false } = {}) {
+      currentView = view === "home" ? "home" : +view;
+      const isHome = currentView === "home";
+
+      document.getElementById("viewHome").classList.toggle("hidden", !isHome);
+      document.getElementById("viewPlayer").classList.toggle("hidden", isHome);
+
+      document.querySelectorAll(".nav-tab").forEach(tab => {
+        const active = tab.dataset.view === String(currentView);
+        tab.classList.toggle("active", active);
+        tab.setAttribute("aria-current", active ? "page" : null);
+      });
+
+      if (isHome) {
+        document.getElementById("headerSubtitle").textContent = "全体順位・履歴";
+        renderHome();
+      } else {
+        activePlayerId = currentView;
+        const p = state.players[activePlayerId];
+        document.getElementById("headerSubtitle").textContent = `${p.name}（${p.seat}）の操作画面`;
+        renderPlayerView(activePlayerId);
+      }
+
+      if (!skipLocalSave) saveLocalState();
+    }
+
+    function renderNavLabels() {
+      state.players.forEach((p, i) => {
+        const label = document.getElementById(`tabLabel${i}`);
+        const shortName = p.name.length > 5 ? p.name.slice(0, 5) + "…" : p.name;
+        label.textContent = shortName;
+        label.title = `${p.name}（${p.seat}）`;
+      });
+    }
+
+    function renderRanking() {
+      const sorted = [...state.players].sort((a, b) => b.score - a.score || b.chips - a.chips);
+      const container = document.getElementById("rankingList");
+
+      container.innerHTML = sorted.map((p, index) => {
+        const rank = index + 1;
+        const delta = p.score - INITIAL_SCORE;
+        const deltaClass = delta > 0 ? "plus" : delta < 0 ? "minus" : "zero";
+        const rankDisplay = RANK_MEDALS[index] || String(rank);
+        const rankClass = rank === 1 ? "" : " rank-other";
+
+        return `
+          <div class="ranking-item rank-${rank}">
+            <div class="rank${rankClass}">${rankDisplay}</div>
+            <div class="player-info">
+              <div class="player-name">${escapeHtml(p.name)}</div>
+              <div class="player-seat">${p.seat}</div>
+            </div>
+            <div class="stats">
+              <div class="score-value">${formatScore(p.score)}</div>
+              <div class="delta ${deltaClass}">${formatDelta(delta)}</div>
+              <div class="chip-badge">🎰 ${p.chips} 枚</div>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderTotals() {
+      const totalScore = state.players.reduce((s, p) => s + p.score, 0);
+      const totalChips = state.players.reduce((s, p) => s + p.chips, 0);
+      const expected = INITIAL_SCORE * 4;
+
+      document.getElementById("totalScore").textContent = formatScore(totalScore);
+      document.getElementById("totalChips").textContent = formatScore(totalChips);
+
+      const balanceEl = document.getElementById("balanceStatus");
+      if (totalScore === expected) {
+        balanceEl.innerHTML = '<span>バランス</span> <strong class="ok">OK</strong>';
+      } else {
+        const diff = totalScore - expected;
+        balanceEl.innerHTML = `<span>バランス</span> <strong class="ng">${formatDelta(diff)}</strong>`;
+      }
+    }
+
+    function renderHistory() {
+      const el = document.getElementById("history");
+      if (state.history.length === 0) {
+        el.innerHTML = '<div class="history-empty">まだ操作がありません</div>';
+        return;
+      }
+
+      el.innerHTML = [...state.history].reverse().map(h => `
+        <div class="history-item ${h.type}">
+          <span class="desc">${escapeHtml(h.desc)}</span>
+          <span class="time">${h.time}</span>
+        </div>
+      `).join("");
+    }
+
+    function renderInitialChips() {
+      const grid = document.getElementById("initialChipsGrid");
+      grid.innerHTML = state.players.map((p, i) => `
+        <div class="initial-chip-field">
+          <label for="initialChip${i}">${escapeHtml(p.name)}（${p.seat}）</label>
+          <input type="number" class="initial-chip-input" id="initialChip${i}"
+            min="0" step="1" value="${state.initialChips[i] ?? 0}" inputmode="numeric">
+        </div>
+      `).join("");
+
+      grid.querySelectorAll(".initial-chip-input").forEach((input, i) => {
+        input.addEventListener("change", () => {
+          const val = parseAmount(input.value);
+          state.initialChips[i] = Number.isInteger(val) && val >= 0 ? val : 0;
+          input.value = state.initialChips[i];
+          saveState();
+        });
+      });
+    }
+
+    function renderHome() {
+      renderRanking();
+      renderTotals();
+      renderHistory();
+      renderInitialChips();
+      renderNavLabels();
+      updateShareUrlDisplay();
+    }
+
+    function renderPlayerView(playerId) {
+      const p = state.players[playerId];
+      const delta = p.score - INITIAL_SCORE;
+      const deltaClass = delta > 0 ? "plus" : delta < 0 ? "minus" : "";
+      const container = document.getElementById("viewPlayer");
+
+      container.innerHTML = `
+        <div class="player-hero">
+          <div class="seat">${p.seat} · P${playerId + 1}</div>
+          <input type="text" class="name-input" id="playerNameInput" value="${escapeHtml(p.name)}"
+            maxlength="12" aria-label="自分の名前">
+          <div class="hero-stats">
+            <div class="hero-stat">
+              <span class="hero-stat-label">持ち点</span>
+              <span class="hero-stat-value">${formatScore(p.score)}</span>
+            </div>
+            <div class="hero-stat">
+              <span class="hero-stat-label">収支</span>
+              <span class="hero-stat-value ${deltaClass}">${formatDelta(delta)}</span>
+            </div>
+            <div class="hero-stat">
+              <span class="hero-stat-label">チップ</span>
+              <span class="hero-stat-value chip">${p.chips} 枚</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>点数移動（ツモ・ロン）</h2>
+          <form class="transfer-form" id="playerScoreForm">
+            <div>
+              <label for="scoreOpponent">相手</label>
+              <select id="scoreOpponent">${getOpponentOptions(playerId)}</select>
+            </div>
+            <div class="amount-row">
+              <div>
+                <label for="scoreAmount">点数</label>
+                <input type="number" id="scoreAmount" min="0" step="1" placeholder="例: 3900" inputmode="numeric">
+              </div>
+              <button type="button" class="btn-clear" data-clear="scoreAmount" aria-label="点数入力をクリア">クリア</button>
+            </div>
+            <div class="quick-buttons" id="scoreQuickBtns">
+              <button type="button" class="quick-btn" data-amount="1000">+1000</button>
+              <button type="button" class="quick-btn" data-amount="5000">+5000</button>
+              <button type="button" class="quick-btn" data-amount="8000">+8000</button>
+            </div>
+            <div class="btn-row">
+              <button type="button" class="btn btn-pay" data-action="pay">支払う</button>
+              <button type="button" class="btn btn-receive" data-action="receive">もらう</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="panel">
+          <h2>チップ移動</h2>
+          <form class="transfer-form" id="playerChipForm">
+            <div>
+              <label for="chipOpponent">相手</label>
+              <select id="chipOpponent">${getOpponentOptions(playerId)}</select>
+            </div>
+            <div class="amount-row">
+              <div>
+                <label for="chipAmount">枚数</label>
+                <input type="number" id="chipAmount" min="0" step="1" placeholder="例: 5" inputmode="numeric">
+              </div>
+              <button type="button" class="btn-clear" data-clear="chipAmount" aria-label="チップ枚数入力をクリア">クリア</button>
+            </div>
+            <div class="quick-buttons" id="chipQuickBtns">
+              ${CHIP_QUICK.map(v => `<button type="button" class="quick-btn" data-amount="${v}">+${v}</button>`).join("")}
+            </div>
+            <div class="btn-row">
+              <button type="button" class="btn btn-pay" data-action="pay">渡す</button>
+              <button type="button" class="btn btn-receive" data-action="receive">もらう</button>
+            </div>
+          </form>
+        </div>
+      `;
+
+      container.querySelector("#playerNameInput").addEventListener("change", e => {
+        pushUndo();
+        state.players[playerId].name = e.target.value.trim() || `プレイヤー${playerId + 1}`;
+        saveState();
+        renderAll();
+      });
+
+      container.querySelector("#scoreQuickBtns").addEventListener("click", e => {
+        const btn = e.target.closest("[data-amount]");
+        if (!btn) return;
+        addToAmountInput("scoreAmount", +btn.dataset.amount);
+      });
+
+      container.querySelector("#chipQuickBtns").addEventListener("click", e => {
+        const btn = e.target.closest("[data-amount]");
+        if (!btn) return;
+        addToAmountInput("chipAmount", +btn.dataset.amount);
+      });
+
+      container.querySelectorAll("[data-clear]").forEach(btn => {
+        btn.addEventListener("click", () => clearAmountInput(btn.dataset.clear));
+      });
+
+      container.querySelector("#playerScoreForm").addEventListener("click", e => {
+        const btn = e.target.closest("[data-action]");
+        if (!btn) return;
+        e.preventDefault();
+        const opponentId = +document.getElementById("scoreOpponent").value;
+        const amount = parseAmount(document.getElementById("scoreAmount").value);
+        const pay = btn.dataset.action === "pay";
+        const fromId = pay ? playerId : opponentId;
+        const toId = pay ? opponentId : playerId;
+        if (transferScore(fromId, toId, amount)) {
+          document.getElementById("scoreAmount").value = "";
+        }
+      });
+
+      container.querySelector("#playerChipForm").addEventListener("click", e => {
+        const btn = e.target.closest("[data-action]");
+        if (!btn) return;
+        e.preventDefault();
+        const opponentId = +document.getElementById("chipOpponent").value;
+        const amount = parseAmount(document.getElementById("chipAmount").value);
+        const pay = btn.dataset.action === "pay";
+        const fromId = pay ? playerId : opponentId;
+        const toId = pay ? opponentId : playerId;
+        if (transferChip(fromId, toId, amount)) {
+          document.getElementById("chipAmount").value = "";
+        }
+      });
+
+      renderNavLabels();
+    }
+
+    function parseAmount(value) {
+      const n = parseInt(String(value).trim(), 10);
+      return Number.isFinite(n) ? n : NaN;
+    }
+
+    function addToAmountInput(inputId, amount) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      const current = parseAmount(input.value);
+      input.value = (Number.isInteger(current) && current >= 0 ? current : 0) + amount;
+    }
+
+    function clearAmountInput(inputId) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      input.value = "";
+      input.focus();
+    }
+
+    function renderAll() {
+      renderNavLabels();
+      if (currentView === "home") {
+        renderHome();
+      } else {
+        renderPlayerView(activePlayerId);
+      }
+    }
+
+    function nowTime() {
+      const d = new Date();
+      return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+    }
+
+    function transferScore(fromId, toId, amount) {
+      if (fromId === toId) {
+        showToast("相手を選んでください", true);
+        return false;
+      }
+      if (!Number.isInteger(amount) || amount <= 0) {
+        showToast("正の点数を入力してください", true);
+        return false;
+      }
+
+      const from = state.players[fromId];
+      const to = state.players[toId];
+
+      if (from.score < amount) {
+        showToast(`${from.name}の持ち点が足りません`, true);
+        return false;
+      }
+
+      pushUndo();
+      from.score -= amount;
+      to.score += amount;
+
+      state.history.push({
+        type: "score",
+        desc: `点数 ${from.name} → ${to.name}  ${formatScore(amount)}点`,
+        time: nowTime()
+      });
+
+      saveState();
+      renderAll();
+      showToast(`${from.name} → ${to.name}  ${formatScore(amount)}点`);
+      return true;
+    }
+
+    function transferChip(fromId, toId, amount) {
+      if (fromId === toId) {
+        showToast("相手を選んでください", true);
+        return false;
+      }
+      if (!Number.isInteger(amount) || amount <= 0) {
+        showToast("正の枚数を入力してください", true);
+        return false;
+      }
+
+      const from = state.players[fromId];
+      const to = state.players[toId];
+
+      if (from.chips < amount) {
+        showToast(`${from.name}のチップが足りません`, true);
+        return false;
+      }
+
+      pushUndo();
+      from.chips -= amount;
+      to.chips += amount;
+
+      state.history.push({
+        type: "chip",
+        desc: `チップ ${from.name} → ${to.name}  ${amount}枚`,
+        time: nowTime()
+      });
+
+      saveState();
+      renderAll();
+      showToast(`${from.name} → ${to.name}  ${amount}枚`);
+      return true;
+    }
+
+    function applyInitialChips() {
+      const inputs = document.querySelectorAll(".initial-chip-input");
+      pushUndo();
+      inputs.forEach((input, i) => {
+        const val = parseAmount(input.value);
+        const chips = Number.isInteger(val) && val >= 0 ? val : 0;
+        state.players[i].chips = chips;
+        state.initialChips[i] = chips;
+        input.value = chips;
+      });
+
+      state.history.push({
+        type: "chip",
+        desc: `初期チップ設定（${state.players.map(p => `${p.name}:${p.chips}枚`).join(" / ")}）`,
+        time: nowTime()
+      });
+
+      saveState();
+      renderAll();
+      showToast("初期チップを設定しました");
+    }
+
+    function resetGameState() {
+      undoStack.length = 0;
+      state.players = SEATS.map((seat, i) => ({
+        id: i,
+        seat,
+        name: `プレイヤー${i + 1}`,
+        score: INITIAL_SCORE,
+        chips: 0
+      }));
+      state.initialChips = [0, 0, 0, 0];
+      state.history = [];
+      lastAppliedRevision = 0;
+      pendingWriteRevision = null;
+    }
+
+    document.getElementById("navTabs").addEventListener("click", e => {
+      const tab = e.target.closest(".nav-tab");
+      if (!tab) return;
+      switchView(tab.dataset.view);
+    });
+
+    document.getElementById("connectBtn").addEventListener("click", () => {
+      connectToTable(document.getElementById("tableIdInput").value);
+    });
+
+    document.getElementById("newTableBtn").addEventListener("click", () => {
+      const newId = generateTableId();
+      document.getElementById("tableIdInput").value = newId;
+      resetGameState();
+      connectToTable(newId);
+      switchView("home");
+      saveState();
+      showToast(`新しい卓「${newId}」を作成しました`);
+    });
+
+    document.getElementById("copyLinkBtn").addEventListener("click", async () => {
+      if (!tableId) {
+        showToast("先に卓IDを設定してください", true);
+        return;
+      }
+      const text = getShareText();
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast(IS_LOCAL_FILE ? "卓IDをコピーしました" : "共有URLをコピーしました");
+      } catch (_) {
+        showToast(text, false);
+      }
+    });
+
+    document.getElementById("undoBtn").addEventListener("click", () => {
+      if (undoStack.length === 0) {
+        showToast("戻せる操作がありません", true);
+        return;
+      }
+      const prev = JSON.parse(undoStack.pop());
+      state.players = prev.players;
+      state.history = prev.history;
+      state.initialChips = prev.initialChips ?? state.initialChips;
+      saveState();
+      renderAll();
+      showToast("1手戻しました");
+    });
+
+    document.getElementById("resetBtn").addEventListener("click", () => {
+      if (!confirm("本当に初期化しますか？\nすべてのデータが消え、新しいゲームを開始します。\n接続中の全端末にも反映されます。")) return;
+
+      resetGameState();
+      currentView = "home";
+      saveState();
+      switchView("home");
+      showToast("新しいゲームを開始しました");
+    });
+
+    document.getElementById("setInitialChipsBtn").addEventListener("click", applyInitialChips);
+
+    window.addEventListener("pagehide", saveLocalState);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") saveLocalState();
+    });
+
+    const restored = loadLocalState();
+    switchView(restored ? currentView : "home", { skipLocalSave: true });
+
+    const urlRoom = new URLSearchParams(window.location.search).get("room");
+    const initialTableId = sanitizeTableId(urlRoom) || sanitizeTableId(localStorage.getItem(TABLE_ID_KEY)) || generateTableId();
+
+    document.getElementById("tableIdInput").value = initialTableId;
+    connectToTable(initialTableId);
+  </script>
+</body>
+</html>
