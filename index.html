@@ -3,773 +3,205 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>麻雀 点数・チップ管理</title>
+  <title>麻雀 精算・ランキング</title>
   <style>
     :root {
-      --bg: #0f1f18;
-      --bg-card: #1a3328;
-      --bg-card-hover: #1f3d30;
-      --felt: #1e4d3a;
-      --border: #2d6b52;
-      --border-light: #3d8a6a;
-      --text: #e8f5ef;
-      --text-muted: #8fb9a8;
-      --accent: #d4af37;
-      --accent-dim: #a8892a;
-      --plus: #6ee7a0;
-      --minus: #f87171;
-      --chip: #c084fc;
-      --input-bg: #0d1814;
-      --radius: 12px;
-      --shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+      --bg: #0f1f18; --bg-card: #1a3328; --felt: #1e4d3a;
+      --border: #2d6b52; --border-light: #3d8a6a;
+      --text: #e8f5ef; --text-muted: #8fb9a8;
+      --accent: #d4af37; --accent-dim: #a8892a;
+      --plus: #6ee7a0; --minus: #f87171; --chip: #c084fc;
+      --input-bg: #0d1814; --radius: 12px; --shadow: 0 4px 20px rgba(0,0,0,.35);
       --nav-height: 56px;
     }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: "Segoe UI", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", sans-serif;
+      font-family: "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
       background: var(--bg);
-      background-image:
-        radial-gradient(ellipse at 50% 0%, rgba(30, 77, 58, 0.5) 0%, transparent 60%),
-        radial-gradient(ellipse at 50% 100%, rgba(15, 31, 24, 0.9) 0%, transparent 50%);
-      color: var(--text);
-      min-height: 100dvh;
-      padding: 16px;
-      padding-bottom: calc(16px + var(--nav-height) + env(safe-area-inset-bottom));
+      background-image: radial-gradient(ellipse at 50% 0%, rgba(30,77,58,.5) 0%, transparent 60%),
+        radial-gradient(ellipse at 50% 100%, rgba(15,31,24,.9) 0%, transparent 50%);
+      color: var(--text); min-height: 100dvh;
+      padding: 16px; padding-bottom: calc(16px + var(--nav-height) + env(safe-area-inset-bottom));
     }
-
-    header {
-      text-align: center;
-      margin-bottom: 16px;
-    }
-
-    header h1 {
-      font-size: 1.25rem;
-      font-weight: 700;
-      letter-spacing: 0.05em;
-      color: var(--accent);
-    }
-
-    header p {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      margin-top: 4px;
-    }
-
-    .sync-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      margin-top: 8px;
-      font-size: 0.7rem;
-      padding: 4px 10px;
-      border-radius: 999px;
-      background: rgba(45, 107, 82, 0.25);
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-    }
-
-    .sync-badge .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--text-muted);
-    }
-
-    .sync-badge.online .dot {
-      background: var(--plus);
-      box-shadow: 0 0 6px var(--plus);
-    }
-
-    .sync-badge.offline .dot {
-      background: var(--minus);
-    }
-
-    .sync-badge.syncing .dot {
-      background: var(--accent);
-      animation: pulse 1s infinite;
-    }
-
-    .header-actions {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 10px;
-      margin-top: 10px;
-    }
-
-    .btn-refresh {
-      background: var(--felt);
-      border: 1px solid var(--border-light);
-      color: var(--text);
-      font-size: 0.8rem;
-      font-weight: 600;
-      padding: 9px 18px;
-      border-radius: 999px;
-      cursor: pointer;
-      transition: opacity 0.15s, transform 0.1s;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    .btn-refresh:active:not(:disabled) {
-      transform: scale(0.98);
-    }
-
-    .btn-refresh:disabled {
-      opacity: 0.55;
-      cursor: not-allowed;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
-    }
-
-    .view {
-      display: block;
-    }
-
-    .view.hidden {
-      display: none;
-    }
-
-    .nav-tabs {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      display: flex;
-      background: var(--bg-card);
-      border-top: 1px solid var(--border);
-      padding-bottom: env(safe-area-inset-bottom);
-      z-index: 50;
-      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
-    }
-
-    .nav-tab {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 2px;
-      min-height: var(--nav-height);
-      padding: 6px 4px;
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      font-size: 0.65rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: color 0.15s, background 0.15s;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    .nav-tab .tab-icon {
-      font-size: 1rem;
-      line-height: 1;
-    }
-
-    .nav-tab .tab-label {
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 100%;
-    }
-
-    .nav-tab.active {
-      color: var(--accent);
-      background: rgba(212, 175, 55, 0.08);
-    }
-
-    .nav-tab:active {
-      background: rgba(45, 107, 82, 0.3);
-    }
-
-    .room-form {
-      display: grid;
-      gap: 10px;
-    }
-
-    .room-row {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 8px;
-      align-items: end;
-    }
-
-    .room-actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-    }
-
-    .share-url {
-      font-size: 0.7rem;
-      color: var(--text-muted);
-      word-break: break-all;
-      background: var(--input-bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px 10px;
-    }
-
-    .total-bar {
-      display: flex;
-      justify-content: center;
-      gap: 16px;
-      flex-wrap: wrap;
-      background: var(--felt);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 10px 16px;
-      margin-bottom: 16px;
-      font-size: 0.8rem;
-    }
-
-    .total-bar span {
-      color: var(--text-muted);
-    }
-
-    .total-bar strong {
-      color: var(--text);
-    }
-
-    .total-bar .ok { color: var(--plus); }
-    .total-bar .ng { color: var(--minus); }
-
-    .ranking-list {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      margin-bottom: 16px;
-    }
-
-    .ranking-item {
-      display: grid;
-      grid-template-columns: 36px 1fr auto;
-      grid-template-rows: auto auto;
-      gap: 2px 10px;
-      align-items: center;
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 12px 14px;
-      transition: border-color 0.2s;
-    }
-
-    .ranking-item.rank-1 {
-      border-color: var(--accent);
-      background: linear-gradient(135deg, rgba(212, 175, 55, 0.12) 0%, var(--bg-card) 60%);
-    }
-
-    .ranking-item .rank {
-      grid-row: 1 / 3;
-      font-size: 1.4rem;
-      font-weight: 800;
-      color: var(--accent);
-      text-align: center;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .ranking-item .rank.rank-other {
-      color: var(--text-muted);
-      font-size: 1.1rem;
-    }
-
-    .ranking-item .player-info {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      min-width: 0;
-    }
-
-    .ranking-item .player-name {
-      font-size: 0.95rem;
-      font-weight: 700;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .ranking-item .player-seat {
-      font-size: 0.65rem;
-      color: var(--text-muted);
-      letter-spacing: 0.06em;
-    }
-
-    .ranking-item .stats {
-      grid-row: 1 / 3;
-      text-align: right;
-    }
-
-    .ranking-item .score-value {
-      font-size: 1.05rem;
-      font-weight: 700;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .ranking-item .delta {
-      font-size: 0.8rem;
-      font-weight: 600;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .ranking-item .delta.plus { color: var(--plus); }
-    .ranking-item .delta.minus { color: var(--minus); }
-    .ranking-item .delta.zero { color: var(--text-muted); }
-
-    .ranking-item .chip-badge {
-      display: inline-block;
-      margin-top: 4px;
-      font-size: 0.7rem;
-      color: var(--chip);
-      background: rgba(192, 132, 252, 0.12);
-      border-radius: 6px;
-      padding: 2px 6px;
-      font-weight: 600;
-    }
-
-    .player-hero {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 16px;
-      margin-bottom: 16px;
-      text-align: center;
-    }
-
-    .player-hero .seat {
-      font-size: 0.7rem;
-      color: var(--text-muted);
-      letter-spacing: 0.1em;
-      margin-bottom: 8px;
-    }
-
-    .player-hero .name-input {
-      width: 100%;
-      max-width: 240px;
-      background: transparent;
-      border: none;
-      border-bottom: 2px solid var(--border);
-      color: var(--text);
-      font-size: 1.2rem;
-      font-weight: 700;
-      text-align: center;
-      padding: 6px 0;
-      margin-bottom: 14px;
-      outline: none;
-    }
-
-    .player-hero .name-input:focus {
-      border-bottom-color: var(--accent);
-    }
-
-    .player-hero .hero-stats {
-      display: flex;
-      justify-content: center;
-      gap: 24px;
-      flex-wrap: wrap;
-    }
-
-    .player-hero .hero-stat {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .player-hero .hero-stat-label {
-      font-size: 0.7rem;
-      color: var(--text-muted);
-    }
-
-    .player-hero .hero-stat-value {
-      font-size: 1.3rem;
-      font-weight: 700;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .player-hero .hero-stat-value.plus { color: var(--plus); }
-    .player-hero .hero-stat-value.minus { color: var(--minus); }
-    .player-hero .hero-stat-value.chip { color: var(--chip); }
-
-    .panel {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 16px;
-      margin-bottom: 16px;
-      box-shadow: var(--shadow);
-    }
-
-    .panel h2 {
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: var(--accent);
-      margin-bottom: 12px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .panel h2::before {
-      content: "";
-      display: inline-block;
-      width: 3px;
-      height: 14px;
-      background: var(--accent);
-      border-radius: 2px;
-    }
-
-    .transfer-form {
-      display: grid;
-      gap: 10px;
-    }
-
-    label {
-      display: block;
-      font-size: 0.7rem;
-      color: var(--text-muted);
-      margin-bottom: 4px;
-    }
-
+    header { text-align: center; margin-bottom: 14px; }
+    header h1 { font-size: 1.2rem; font-weight: 700; color: var(--accent); letter-spacing: .05em; }
+    header p { font-size: .72rem; color: var(--text-muted); margin-top: 4px; }
+    .header-actions { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 8px; }
+    .sync-badge { display: inline-flex; align-items: center; gap: 6px; font-size: .68rem;
+      padding: 4px 10px; border-radius: 999px; background: rgba(45,107,82,.25); border: 1px solid var(--border); color: var(--text-muted); }
+    .sync-badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); }
+    .sync-badge.online .dot { background: var(--plus); box-shadow: 0 0 6px var(--plus); }
+    .sync-badge.offline .dot { background: var(--minus); }
+    .sync-badge.syncing .dot { background: var(--accent); animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .btn-refresh { background: var(--felt); border: 1px solid var(--border-light); color: var(--text);
+      font-size: .78rem; font-weight: 600; padding: 8px 16px; border-radius: 999px; cursor: pointer; }
+    .btn-refresh:disabled { opacity: .5; cursor: not-allowed; }
+    .view.hidden { display: none; }
+    .nav-tabs { position: fixed; bottom: 0; left: 0; right: 0; display: flex;
+      background: var(--bg-card); border-top: 1px solid var(--border); padding-bottom: env(safe-area-inset-bottom); z-index: 50; }
+    .nav-tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+      min-height: var(--nav-height); padding: 6px 2px; background: transparent; border: none;
+      color: var(--text-muted); font-size: .6rem; font-weight: 600; cursor: pointer; }
+    .nav-tab.active { color: var(--accent); background: rgba(212,175,55,.08); }
+    .nav-tab .tab-icon { font-size: 1rem; }
+    .panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px; margin-bottom: 14px; box-shadow: var(--shadow); }
+    .panel h2 { font-size: .85rem; font-weight: 600; color: var(--accent); margin-bottom: 10px;
+      display: flex; align-items: center; gap: 8px; }
+    .panel h2::before { content: ""; width: 3px; height: 14px; background: var(--accent); border-radius: 2px; }
+    .panel-desc { font-size: .72rem; color: var(--text-muted); margin: -4px 0 10px; }
+    label { display: block; font-size: .68rem; color: var(--text-muted); margin-bottom: 4px; }
     select, input[type="number"], input[type="text"] {
-      width: 100%;
-      background: var(--input-bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      font-size: 1rem;
-      padding: 10px 12px;
-      outline: none;
-      -webkit-appearance: none;
-      appearance: none;
-    }
-
-    select:focus, input:focus {
-      border-color: var(--border-light);
-    }
-
-    input[type="number"] {
-      font-variant-numeric: tabular-nums;
-    }
-
-    .amount-row {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 8px;
-      align-items: end;
-    }
-
-    .btn-clear {
-      background: var(--input-bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text-muted);
-      font-size: 0.75rem;
-      font-weight: 600;
-      padding: 10px 12px;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: all 0.15s;
-      margin-top: 18px;
-    }
-
-    .btn-clear:active {
-      background: var(--border);
-      color: var(--text);
-    }
-
-    .quick-buttons {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-
-    .quick-btn {
-      background: var(--felt);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text-muted);
-      font-size: 0.75rem;
-      padding: 6px 10px;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-
-    .quick-btn:active {
-      background: var(--border);
-      color: var(--text);
-    }
-
-    .btn {
-      width: 100%;
-      border: none;
-      border-radius: 10px;
-      font-size: 1rem;
-      font-weight: 600;
-      padding: 14px;
-      cursor: pointer;
-      transition: transform 0.1s, opacity 0.15s;
-    }
-
-    .btn:active {
-      transform: scale(0.98);
-    }
-
-    .btn-primary {
-      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dim) 100%);
-      color: #1a1508;
-    }
-
-    .btn-chip {
-      background: linear-gradient(135deg, #9333ea 0%, #7c3aed 100%);
-      color: #fff;
-    }
-
-    .btn-secondary {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      font-size: 0.85rem;
-      padding: 10px;
-    }
-
-    .btn-danger {
-      border-color: var(--minus);
-      color: var(--minus);
-    }
-
-    .btn-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-    }
-
-    .btn-pay {
-      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-      color: #fff;
-    }
-
-    .btn-receive {
-      background: linear-gradient(135deg, #059669 0%, #047857 100%);
-      color: #fff;
-    }
-
-    .history {
-      max-height: 320px;
-      overflow-y: auto;
-      font-size: 0.75rem;
-    }
-
-    .history-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 0;
-      border-bottom: 1px solid rgba(45, 107, 82, 0.4);
-      gap: 8px;
-    }
-
-    .history-item:last-child {
-      border-bottom: none;
-    }
-
-    .history-item .time {
-      color: var(--text-muted);
-      font-size: 0.65rem;
-      white-space: nowrap;
-    }
-
-    .history-item .desc {
-      flex: 1;
-      text-align: left;
-    }
-
-    .history-item.score .desc { color: var(--text); }
+      width: 100%; background: var(--input-bg); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text); font-size: .95rem; padding: 10px 12px; outline: none; }
+    select:focus, input:focus { border-color: var(--border-light); }
+    .btn { width: 100%; border: none; border-radius: 10px; font-size: .95rem; font-weight: 600;
+      padding: 13px; cursor: pointer; }
+    .btn:active { transform: scale(.98); }
+    .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent-dim)); color: #1a1508; }
+    .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text-muted); font-size: .85rem; padding: 10px; }
+    .btn-danger { border-color: var(--minus); color: var(--minus); background: transparent; }
+    .btn-success { background: linear-gradient(135deg, #059669, #047857); color: #fff; }
+    .btn-chip { background: linear-gradient(135deg, #9333ea, #7c3aed); color: #fff; }
+    .btn-pay { background: linear-gradient(135deg, #dc2626, #b91c1c); color: #fff; }
+    .btn-receive { background: linear-gradient(135deg, #059669, #047857); color: #fff; }
+    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .actions-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .room-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+    .share-url { font-size: .68rem; color: var(--text-muted); word-break: break-all;
+      background: var(--input-bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px; margin-top: 8px; }
+    .ranking-list { display: flex; flex-direction: column; gap: 8px; }
+    .ranking-item { display: grid; grid-template-columns: 36px 40px 1fr auto; gap: 8px; align-items: center;
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+    .ranking-item.rank-1 { border-color: var(--accent); background: linear-gradient(135deg, rgba(212,175,55,.12), var(--bg-card) 60%); }
+    .ranking-item .rank { font-size: 1.2rem; font-weight: 800; color: var(--accent); text-align: center; }
+    .ranking-item .avatar { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; font-size: 1.1rem; font-weight: 700; border: 2px solid rgba(255,255,255,.15); }
+    .ranking-item .name { font-weight: 700; font-size: .9rem; }
+    .ranking-item .sub { font-size: .65rem; color: var(--text-muted); margin-top: 2px; }
+    .ranking-item .score-block { text-align: right; }
+    .ranking-item .total-score { font-size: 1rem; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+    .ranking-item .detail { font-size: .65rem; color: var(--text-muted); margin-top: 2px; }
+    .history { max-height: 280px; overflow-y: auto; font-size: .72rem; }
+    .history-item { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid rgba(45,107,82,.4); gap: 8px; }
     .history-item.chip .desc { color: var(--chip); }
-
-    .history-empty {
-      color: var(--text-muted);
-      text-align: center;
-      padding: 16px;
-      font-size: 0.8rem;
-    }
-
-    .initial-chips-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-bottom: 12px;
-    }
-
-    @media (min-width: 480px) {
-      .initial-chips-grid {
-        grid-template-columns: repeat(4, 1fr);
-      }
-    }
-
-    .initial-chip-field input {
-      font-size: 0.9rem;
-      padding: 8px 10px;
-    }
-
-    .panel-desc {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      margin: -6px 0 12px;
-    }
-
-    .actions-bar {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-bottom: 16px;
-    }
-
-    .toast {
-      position: fixed;
-      bottom: calc(var(--nav-height) + 12px + env(safe-area-inset-bottom));
-      left: 50%;
-      transform: translateX(-50%) translateY(80px);
-      background: var(--bg-card);
-      border: 1px solid var(--border-light);
-      color: var(--text);
-      padding: 12px 20px;
-      border-radius: 10px;
-      font-size: 0.85rem;
-      opacity: 0;
-      transition: transform 0.3s, opacity 0.3s;
-      z-index: 100;
-      pointer-events: none;
-      max-width: 90vw;
-      text-align: center;
-    }
-
-    .toast.show {
-      transform: translateX(-50%) translateY(0);
-      opacity: 1;
-    }
-
-    .toast.error {
-      border-color: var(--minus);
-      color: var(--minus);
-    }
+    .history-empty { color: var(--text-muted); text-align: center; padding: 16px; font-size: .78rem; }
+    .hanchan-card { border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 8px; }
+    .hanchan-card .title { font-size: .78rem; font-weight: 600; color: var(--accent); margin-bottom: 8px; }
+    .hanchan-result-row { display: flex; justify-content: space-between; font-size: .75rem; padding: 4px 0; }
+    .hanchan-result-row .delta.plus { color: var(--plus); }
+    .hanchan-result-row .delta.minus { color: var(--minus); }
+    .seat-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
+    .seat-tab { padding: 8px 4px; border-radius: 8px; border: 1px solid var(--border); background: var(--input-bg);
+      color: var(--text-muted); font-size: .68rem; font-weight: 600; cursor: pointer; text-align: center; }
+    .seat-tab.active { border-color: var(--accent); color: var(--accent); background: rgba(212,175,55,.1); }
+    .player-hero { text-align: center; padding: 14px; background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); margin-bottom: 14px; }
+    .player-hero .avatar-lg { width: 56px; height: 56px; border-radius: 50%; margin: 0 auto 8px;
+      display: flex; align-items: center; justify-content: center; font-size: 1.5rem; border: 2px solid rgba(255,255,255,.2); }
+    .player-hero .hero-stats { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-top: 10px; }
+    .hero-stat-label { font-size: .65rem; color: var(--text-muted); }
+    .hero-stat-value { font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .hero-stat-value.plus { color: var(--plus); } .hero-stat-value.minus { color: var(--minus); } .hero-stat-value.chip { color: var(--chip); }
+    .transfer-form { display: grid; gap: 10px; }
+    .amount-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+    .btn-clear { background: var(--input-bg); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text-muted); font-size: .72rem; padding: 10px; cursor: pointer; margin-top: 18px; white-space: nowrap; }
+    .quick-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+    .quick-btn { background: var(--felt); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text-muted); font-size: .72rem; padding: 6px 10px; cursor: pointer; }
+    .setup-grid { display: grid; gap: 10px; }
+    .setup-seat { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; }
+    .setup-seat .seat-label { font-size: .75rem; color: var(--text-muted); width: 24px; font-weight: 700; }
+    .chip-input-row { display: grid; grid-template-columns: 1fr 80px; gap: 8px; align-items: end; }
+    .player-list { display: flex; flex-direction: column; gap: 8px; }
+    .player-item { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center;
+      padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--input-bg); }
+    .player-item .avatar { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; font-size: 1.2rem; border: 2px solid rgba(255,255,255,.15); }
+    .player-item .pname { font-weight: 700; font-size: .9rem; }
+    .player-item .pstats { font-size: .65rem; color: var(--text-muted); margin-top: 2px; }
+    .player-item .pactions { display: flex; gap: 6px; }
+    .icon-btn { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--felt); color: var(--text-muted); cursor: pointer; font-size: .85rem; }
+    .icon-picker, .color-picker { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .pick-btn { width: 36px; height: 36px; border-radius: 8px; border: 2px solid transparent; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; font-size: 1rem; background: var(--input-bg); }
+    .pick-btn.selected { border-color: var(--accent); }
+    .color-btn { width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; }
+    .color-btn.selected { border-color: #fff; }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 200;
+      display: flex; align-items: flex-end; justify-content: center; padding: 16px; }
+    .modal-overlay.hidden { display: none; }
+    .modal { width: 100%; max-width: 420px; background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 16px 16px 0 0; padding: 20px; max-height: 85dvh; overflow-y: auto; }
+    .modal h3 { font-size: 1rem; color: var(--accent); margin-bottom: 14px; }
+    .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+    .badge-settled { display: inline-block; font-size: .65rem; padding: 3px 8px; border-radius: 999px;
+      background: rgba(110,231,160,.15); color: var(--plus); border: 1px solid var(--plus); margin-left: 8px; }
+    .badge-open { display: inline-block; font-size: .65rem; padding: 3px 8px; border-radius: 999px;
+      background: rgba(212,175,55,.15); color: var(--accent); border: 1px solid var(--accent); margin-left: 8px; }
+    .day-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .day-stat { background: var(--input-bg); border-radius: 8px; padding: 10px; text-align: center; }
+    .day-stat .val { font-size: 1.1rem; font-weight: 700; color: var(--accent); }
+    .day-stat .lbl { font-size: .65rem; color: var(--text-muted); margin-top: 2px; }
+    .toast { position: fixed; bottom: calc(var(--nav-height) + 12px + env(safe-area-inset-bottom)); left: 50%;
+      transform: translateX(-50%) translateY(80px); background: var(--bg-card); border: 1px solid var(--border-light);
+      color: var(--text); padding: 12px 20px; border-radius: 10px; font-size: .85rem; opacity: 0;
+      transition: transform .3s, opacity .3s; z-index: 300; pointer-events: none; max-width: 90vw; text-align: center; }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+    .toast.error { border-color: var(--minus); color: var(--minus); }
+    .total-bar { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap;
+      background: var(--felt); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; margin-bottom: 14px; font-size: .78rem; }
+    .total-bar .ok { color: var(--plus); } .total-bar .ng { color: var(--minus); }
   </style>
 </head>
 <body>
   <header>
-    <h1>🀄 点数・チップ管理</h1>
-    <p id="headerSubtitle">全体順位・履歴</p>
+    <h1>🀄 麻雀 精算・ランキング</h1>
+    <p id="headerSubtitle">総合ランキング</p>
     <div class="header-actions">
-      <div class="sync-badge syncing" id="syncBadge">
-        <span class="dot"></span>
-        <span id="syncStatusText">接続中…</span>
-      </div>
+      <div class="sync-badge syncing" id="syncBadge"><span class="dot"></span><span id="syncStatusText">接続中…</span></div>
       <button type="button" class="btn-refresh" id="refreshBtn">🔄 最新データに更新</button>
     </div>
   </header>
 
-  <!-- ホーム画面 -->
-  <main id="viewHome" class="view">
-    <div class="panel">
-      <h2>卓の共有（Firestore同期）</h2>
-      <p class="panel-desc">同じ卓IDの端末同士で、点数・チップ・履歴がリアルタイムに同期されます。ローカルファイル（file://）で開いた場合は、他端末にも同じ卓IDを入力して接続してください。</p>
-      <div class="room-form">
-        <div class="room-row">
-          <div>
-            <label for="tableIdInput">卓ID</label>
-            <input type="text" id="tableIdInput" maxlength="20" placeholder="例: ABC123" autocomplete="off">
-          </div>
-          <button type="button" class="btn btn-primary" id="connectBtn" style="margin-top:18px;padding:10px 16px;width:auto;">接続</button>
-        </div>
-        <div class="room-actions">
-          <button type="button" class="btn btn-secondary" id="newTableBtn">新しい卓を作成</button>
-          <button type="button" class="btn btn-secondary" id="copyLinkBtn">共有URL / 卓IDをコピー</button>
-        </div>
-        <div class="share-url" id="shareUrlDisplay">共有情報: —</div>
-      </div>
-    </div>
+  <main id="viewRanking" class="view"></main>
+  <main id="viewDaily" class="view hidden"></main>
+  <main id="viewHanchan" class="view hidden"></main>
+  <main id="viewPlayers" class="view hidden"></main>
 
-    <div class="total-bar">
-      <div><span>合計持ち点</span> <strong id="totalScore">100,000</strong></div>
-      <div><span>合計チップ</span> <strong id="totalChips">0</strong></div>
-      <div id="balanceStatus"><span>バランス</span> <strong class="ok">OK</strong></div>
-    </div>
-
-    <div class="panel">
-      <h2>順位表</h2>
-      <p class="panel-desc">持ち点の高い順に表示（観戦・確認用）</p>
-      <div class="ranking-list" id="rankingList"></div>
-    </div>
-
-    <div class="panel">
-      <h2>操作履歴</h2>
-      <p class="panel-desc">点数・チップの移動タイムライン</p>
-      <div class="history" id="history">
-        <div class="history-empty">まだ操作がありません</div>
-      </div>
-    </div>
-
-    <div class="panel">
-      <h2>チップ初期枚数</h2>
-      <p class="panel-desc">ゲーム開始時に各プレイヤーのチップ枚数を設定します</p>
-      <div class="initial-chips-grid" id="initialChipsGrid"></div>
-      <button type="button" class="btn btn-secondary" id="setInitialChipsBtn">全員に初期チップを設定</button>
-    </div>
-
-    <div class="panel">
-      <h2>設定</h2>
-      <p class="panel-desc">対局データは Firestore に自動同期されます。LocalStorage はオフライン用キャッシュとして併用します。</p>
-      <div class="actions-bar">
-        <button type="button" class="btn btn-secondary" id="undoBtn">1手戻す</button>
-        <button type="button" class="btn btn-secondary btn-danger" id="resetBtn">データを初期化（新しいゲーム）</button>
-      </div>
-    </div>
-  </main>
-
-  <!-- プレイヤー画面（動的生成） -->
-  <main id="viewPlayer" class="view hidden"></main>
-
-  <nav class="nav-tabs" id="navTabs" aria-label="画面切替">
-    <button type="button" class="nav-tab active" data-view="home" aria-current="page">
-      <span class="tab-icon">🏠</span>
-      <span class="tab-label">ホーム</span>
-    </button>
-    <button type="button" class="nav-tab" data-view="0">
-      <span class="tab-icon">🀇</span>
-      <span class="tab-label" id="tabLabel0">P1</span>
-    </button>
-    <button type="button" class="nav-tab" data-view="1">
-      <span class="tab-icon">🀈</span>
-      <span class="tab-label" id="tabLabel1">P2</span>
-    </button>
-    <button type="button" class="nav-tab" data-view="2">
-      <span class="tab-icon">🀉</span>
-      <span class="tab-label" id="tabLabel2">P3</span>
-    </button>
-    <button type="button" class="nav-tab" data-view="3">
-      <span class="tab-icon">🀊</span>
-      <span class="tab-label" id="tabLabel3">P4</span>
-    </button>
+  <nav class="nav-tabs" id="navTabs">
+    <button type="button" class="nav-tab active" data-view="ranking"><span class="tab-icon">🏆</span><span class="tab-label">ランキング</span></button>
+    <button type="button" class="nav-tab" data-view="daily"><span class="tab-icon">📅</span><span class="tab-label">今日</span></button>
+    <button type="button" class="nav-tab" data-view="hanchan"><span class="tab-icon">🀄</span><span class="tab-label">半荘</span></button>
+    <button type="button" class="nav-tab" data-view="players"><span class="tab-icon">👤</span><span class="tab-label">プレイヤー</span></button>
   </nav>
+
+  <div class="modal-overlay hidden" id="playerModal">
+    <div class="modal">
+      <h3 id="playerModalTitle">プレイヤー登録</h3>
+      <label for="playerNameInput">名前</label>
+      <input type="text" id="playerNameInput" maxlength="12" placeholder="例: 太郎">
+      <label style="margin-top:12px">アイコン</label>
+      <div class="icon-picker" id="iconPicker"></div>
+      <label style="margin-top:12px">カラー</label>
+      <div class="color-picker" id="colorPicker"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="playerModalCancel">キャンセル</button>
+        <button type="button" class="btn btn-primary" id="playerModalSave">保存</button>
+      </div>
+    </div>
+  </div>
 
   <div class="toast" id="toast"></div>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
     import {
-      getFirestore,
-      doc,
-      setDoc,
-      getDocFromServer,
-      onSnapshot,
-      serverTimestamp
+      getFirestore, collection, doc, setDoc, getDocFromServer,
+      onSnapshot, serverTimestamp, getDocs, writeBatch, deleteDoc
     } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -786,810 +218,792 @@
     const db = getFirestore(app);
 
     const INITIAL_SCORE = 25000;
+    const CHIP_VALUE = 5000;
     const SEATS = ["東", "南", "西", "北"];
     const CHIP_QUICK = [1, 2, 3, 4, 5];
-    const RANK_MEDALS = ["🥇", "🥈", "🥉", "4"];
-    const STORAGE_KEY = "mahjongScoreApp";
+    const RANK_MEDALS = ["🥇", "🥈", "🥉"];
+    const ICON_OPTIONS = ["🀄", "🐉", "🐯", "🦅", "⭐", "🔥", "💎", "🎯", "東", "南", "西", "北", "郎", "花", "月", "雪"];
+    const COLOR_OPTIONS = ["#d4af37", "#6ee7a0", "#f87171", "#c084fc", "#60a5fa", "#fb923c", "#f472b6", "#34d399"];
+    const STORAGE_KEY = "mahjongApp3";
     const TABLE_ID_KEY = "mahjongTableId";
-    const IS_LOCAL_FILE = window.location.protocol === "file:";
+    const IS_LOCAL_FILE = location.protocol === "file:";
 
-    const state = {
-      players: SEATS.map((seat, i) => ({
-        id: i,
-        seat,
-        name: `プレイヤー${i + 1}`,
-        score: INITIAL_SCORE,
-        chips: 0
-      })),
-      initialChips: [0, 0, 0, 0],
-      history: []
-    };
-
-    const undoStack = [];
-    let currentView = "home";
-    let activePlayerId = 0;
-    let tableId = "";
-    let tableDocRef = null;
-    let unsubscribeSnapshot = null;
-    let lastAppliedRevision = 0;
-    let pendingWriteRevision = null;
+    let roomId = "";
+    let currentView = "ranking";
+    let activeSeat = 0;
+    let hanchanSubView = "setup"; // setup | play
+    let registeredPlayers = {};
+    let dayData = createEmptyDayData();
+    let activeHanchan = defaultActiveHanchan();
+    let undoStack = [];
+    let unsubscribers = [];
+    let lastRevisions = { players: 0, day: 0, active: 0 };
+    let lastLocalWrite = { players: 0, day: 0, active: 0 };
     let isApplyingRemote = false;
-    let hasReceivedSnapshot = false;
-    let writeRevisionCounter = 0;
-    let lastLocalWriteRevision = 0;
+    let editingPlayerId = null;
+    let selectedIcon = ICON_OPTIONS[0];
+    let selectedColor = COLOR_OPTIONS[0];
 
-    function formatScore(n) {
-      return n.toLocaleString("ja-JP");
+    function defaultActiveHanchan() {
+      return {
+        gameStarted: false,
+        initialScore: INITIAL_SCORE,
+        initialChipCount: 0,
+        seats: SEATS.map((seat, i) => ({
+          seat, playerId: "", playerName: "", icon: "🀄", color: COLOR_OPTIONS[i % 8],
+          score: INITIAL_SCORE, chips: 0
+        })),
+        history: [],
+        revision: 0
+      };
     }
 
-    function formatDelta(n) {
-      if (n === 0) return "±0";
-      return n > 0 ? `+${formatScore(n)}` : formatScore(n);
+    function todayKey() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+
+    function createEmptyDayData() {
+      return { date: todayKey(), hanchans: [] };
+    }
+
+    function normalizeDayData(raw) {
+      if (!raw) return createEmptyDayData();
+      return {
+        date: raw.date || todayKey(),
+        hanchans: Array.isArray(raw.hanchans) ? raw.hanchans : []
+      };
+    }
+
+    function normalizeActiveHanchan(raw) {
+      const base = { ...defaultActiveHanchan(), ...raw };
+      if (Array.isArray(raw?.initialChips)) {
+        base.initialChipCount = Number(raw.initialChips[0]) || 0;
+      } else if (Number.isFinite(raw?.initialChipCount)) {
+        base.initialChipCount = Math.max(0, raw.initialChipCount);
+      } else {
+        base.initialChipCount = 0;
+      }
+      delete base.initialChips;
+      return base;
+    }
+
+    function genId() { return "p_" + Math.random().toString(36).slice(2, 10); }
+    function genHanchanId() { return "h_" + Date.now().toString(36); }
+
+    function formatScore(n) { return n.toLocaleString("ja-JP"); }
+    function formatDelta(n) { return n === 0 ? "±0" : (n > 0 ? "+" : "") + formatScore(n); }
+    function formatChipDelta(n) {
+      if (n === 0) return "±0枚";
+      return (n > 0 ? "+" : "") + n + "枚";
+    }
+    function getChipDelta(result, hanchan) {
+      if (Number.isFinite(result.chipDelta)) return result.chipDelta;
+      const initial = Number.isFinite(result.initialChipCount)
+        ? result.initialChipCount
+        : Number(hanchan?.initialChipCount) || 0;
+      const end = Number.isFinite(result.chipsAtEnd)
+        ? result.chipsAtEnd
+        : Number(result.chips) || 0;
+      return end - initial;
+    }
+    function escapeHtml(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+    function nowTime() {
+      const d = new Date();
+      return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    }
+    function sanitizeRoomId(raw) {
+      return String(raw || "").trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "").slice(0, 20);
+    }
+    function generateRoomId() { return Math.random().toString(36).slice(2, 8).toUpperCase(); }
+
+    function totalScore(p) {
+      const pts = Number(p.totalPoints) || 0;
+      const chips = Number(p.totalChips) || 0;
+      return pts + chips * CHIP_VALUE;
     }
 
     function showToast(msg, isError = false) {
-      const toast = document.getElementById("toast");
-      toast.textContent = msg;
-      toast.className = "toast show" + (isError ? " error" : "");
-      clearTimeout(showToast._timer);
-      showToast._timer = setTimeout(() => toast.classList.remove("show"), 2500);
+      const t = document.getElementById("toast");
+      t.textContent = msg;
+      t.className = "toast show" + (isError ? " error" : "");
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => t.classList.remove("show"), 2500);
     }
 
-    function setSyncStatus(status, text) {
-      const badge = document.getElementById("syncBadge");
-      const label = document.getElementById("syncStatusText");
-      badge.className = "sync-badge " + status;
-      label.textContent = text;
+    function setSyncStatus(s, text) {
+      document.getElementById("syncBadge").className = "sync-badge " + s;
+      document.getElementById("syncStatusText").textContent = text;
     }
 
-    function getGamePayload() {
-      return {
-        players: state.players,
-        initialChips: state.initialChips,
-        history: state.history
-      };
+    function getShareUrl(id = roomId) {
+      if (IS_LOCAL_FILE) return id;
+      const u = new URL(location.href);
+      u.searchParams.set("room", id);
+      return u.toString();
     }
 
-    function getLocalPayload() {
-      return {
-        ...getGamePayload(),
-        currentView,
-        tableId
-      };
+    function nextRev(counter) { return Math.max(counter + 1, Date.now()); }
+
+    function roomRef(...parts) {
+      return doc(db, "rooms", roomId, ...parts);
     }
 
-    function saveLocalState() {
+    function saveLocal() {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(getLocalPayload()));
-        if (tableId) localStorage.setItem(TABLE_ID_KEY, tableId);
-      } catch (_) {
-        showToast("ローカル保存に失敗しました", true);
-      }
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ roomId, currentView, activeSeat, hanchanSubView }));
+        if (roomId) localStorage.setItem(TABLE_ID_KEY, roomId);
+      } catch (_) {}
     }
 
-    function loadLocalState() {
+    function loadLocal() {
       try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (!saved) return false;
-
-        const parsed = JSON.parse(saved);
-        if (parsed.players?.length !== 4) return false;
-
-        applyGamePayload(parsed);
-
-        if (parsed.currentView === "home") {
-          currentView = "home";
-        } else {
-          const viewNum = +parsed.currentView;
-          if (Number.isInteger(viewNum) && viewNum >= 0 && viewNum <= 3) {
-            currentView = viewNum;
-          }
-        }
-
-        if (typeof parsed.tableId === "string" && parsed.tableId.trim()) {
-          tableId = sanitizeTableId(parsed.tableId);
-        }
-        return true;
-      } catch (_) {
-        return false;
-      }
+        const s = localStorage.getItem(STORAGE_KEY);
+        if (!s) return;
+        const p = JSON.parse(s);
+        if (p.currentView) currentView = p.currentView;
+        if (Number.isInteger(p.activeSeat)) activeSeat = p.activeSeat;
+        if (p.hanchanSubView) hanchanSubView = p.hanchanSubView;
+        if (p.roomId) roomId = sanitizeRoomId(p.roomId);
+      } catch (_) {}
     }
 
-    function applyGamePayload(payload) {
-      if (!payload?.players || payload.players.length !== 4) return false;
-
-      state.players = payload.players.map((p, i) => ({
-        id: i,
-        seat: SEATS[i],
-        name: typeof p.name === "string" && p.name.trim() ? p.name.trim() : `プレイヤー${i + 1}`,
-        score: Number.isFinite(p.score) ? p.score : INITIAL_SCORE,
-        chips: Number.isFinite(p.chips) ? p.chips : 0
-      }));
-      state.history = Array.isArray(payload.history) ? payload.history : [];
-      state.initialChips = payload.initialChips?.length === 4
-        ? payload.initialChips.map(v => (Number.isFinite(v) && v >= 0 ? v : 0))
-        : state.players.map(p => p.chips);
-      return true;
+    async function writeDoc(ref, data) {
+      const key = ref.path.includes("/active") ? "active" : ref.path.includes("/days/") ? "day" : "players";
+      const revision = nextRev(lastRevisions[key] || 0);
+      lastLocalWrite[key] = revision;
+      await setDoc(ref, { ...data, revision, updatedAt: serverTimestamp() });
+      lastRevisions[key] = revision;
+      return revision;
     }
 
-    function getNextRevision() {
-      writeRevisionCounter = Math.max(writeRevisionCounter + 1, Date.now());
-      return writeRevisionCounter;
-    }
-
-    function applyRemoteSnapshot(data, { notify = false, force = false } = {}) {
-      if (!data?.players || data.players.length !== 4) return false;
-
-      const revision = Number(data.revision) || 0;
-      if (!force && revision > 0 && revision <= lastAppliedRevision) return false;
-
-      isApplyingRemote = true;
-      applyGamePayload(data);
-      lastAppliedRevision = revision;
-      writeRevisionCounter = Math.max(writeRevisionCounter, revision);
-      pendingWriteRevision = null;
-      isApplyingRemote = false;
-
-      saveLocalState();
-      renderAll();
-      setSyncStatus("online", `同期中 · 卓 ${tableId}`);
-      if (notify && revision !== lastLocalWriteRevision) {
-        showToast("他端末の更新を反映しました");
-      }
-      return true;
-    }
-
-    async function saveToFirestore() {
-      if (!tableDocRef || isApplyingRemote) return false;
-
-      const revision = getNextRevision();
-      pendingWriteRevision = revision;
-      lastLocalWriteRevision = revision;
+    async function saveActiveHanchan() {
+      if (!roomId || isApplyingRemote) return;
       setSyncStatus("syncing", "同期中…");
-
       try {
-        await setDoc(tableDocRef, {
-          ...getGamePayload(),
-          revision,
-          updatedAt: serverTimestamp()
-        });
-        lastAppliedRevision = revision;
-        pendingWriteRevision = null;
-        setSyncStatus("online", `同期中 · 卓 ${tableId}`);
-        return true;
-      } catch (err) {
-        pendingWriteRevision = null;
+        await writeDoc(roomRef("active", "hanchan"), activeHanchan);
+        setSyncStatus("online", `同期中 · ${roomId}`);
+      } catch (e) {
         setSyncStatus("offline", "同期エラー");
-        showToast("Firestoreへの保存に失敗しました", true);
-        console.error(err);
-        return false;
+        showToast("半荘データの保存に失敗", true);
+        console.error(e);
       }
     }
 
-    async function refreshFromFirestore({ silent = false } = {}) {
-      if (!tableDocRef || !tableId) {
-        if (!silent) showToast("先に卓IDに接続してください", true);
-        return;
-      }
-
-      const btn = document.getElementById("refreshBtn");
-      btn.disabled = true;
-      setSyncStatus("syncing", "更新中…");
-
+    async function saveDayData() {
+      if (!roomId || isApplyingRemote) return;
       try {
-        const snapshot = await getDocFromServer(tableDocRef);
-        if (!snapshot.exists()) {
-          if (!silent) showToast("卓データが見つかりません", true);
-          setSyncStatus("online", `同期中 · 卓 ${tableId}`);
-          return;
-        }
-
-        applyRemoteSnapshot(snapshot.data(), { force: true });
-        if (!silent) showToast("最新データに更新しました");
-      } catch (err) {
-        setSyncStatus("offline", "更新エラー");
-        if (!silent) showToast("データの取得に失敗しました", true);
-        console.error(err);
-      } finally {
-        btn.disabled = false;
+        await writeDoc(roomRef("days", dayData.date), dayData);
+      } catch (e) {
+        showToast("日別データの保存に失敗", true);
+        console.error(e);
       }
     }
 
-    function handleSnapshotUpdate(snapshot, uploadIfEmpty) {
-      if (!snapshot.exists()) {
-        if (uploadIfEmpty && !hasReceivedSnapshot) {
-          hasReceivedSnapshot = true;
-          saveToFirestore();
-        }
-        setSyncStatus("online", `同期中 · 卓 ${tableId}`);
-        return;
+    async function savePlayer(player) {
+      if (!roomId) return;
+      try {
+        await writeDoc(doc(db, "rooms", roomId, "players", player.id), player);
+      } catch (e) {
+        showToast("プレイヤー保存に失敗", true);
+        console.error(e);
       }
-
-      if (snapshot.metadata.hasPendingWrites) return;
-
-      hasReceivedSnapshot = true;
-      applyRemoteSnapshot(snapshot.data(), { notify: true });
     }
 
-    function saveState() {
-      saveLocalState();
-      saveToFirestore();
+    function applyRemote(key, data, force = false) {
+      const rev = Number(data.revision) || 0;
+      if (!force && rev > 0 && rev <= lastRevisions[key]) return false;
+      lastRevisions[key] = rev;
+      return true;
     }
 
-    function pushUndo() {
-      undoStack.push(JSON.stringify({
-        players: state.players,
-        initialChips: state.initialChips,
-        history: state.history
-      }));
-      if (undoStack.length > 50) undoStack.shift();
+    function stopListeners() {
+      unsubscribers.forEach(u => u());
+      unsubscribers = [];
     }
 
-    function escapeHtml(str) {
-      const d = document.createElement("div");
-      d.textContent = str;
-      return d.innerHTML;
-    }
-
-    function sanitizeTableId(raw) {
-      return String(raw || "")
-        .trim()
-        .toUpperCase()
-        .replace(/[^A-Z0-9_-]/g, "")
-        .slice(0, 20);
-    }
-
-    function generateTableId() {
-      return Math.random().toString(36).slice(2, 8).toUpperCase();
-    }
-
-    function getShareUrl(id = tableId) {
-      if (IS_LOCAL_FILE) {
-        return `卓ID: ${id}（他端末で同じIDを入力）`;
-      }
-      const url = new URL(window.location.href);
-      url.searchParams.set("room", id);
-      return url.toString();
-    }
-
-    function getShareText(id = tableId) {
-      return IS_LOCAL_FILE ? id : getShareUrl(id);
-    }
-
-    function updateShareUrlDisplay() {
-      const el = document.getElementById("shareUrlDisplay");
-      el.textContent = tableId
-        ? (IS_LOCAL_FILE ? `卓ID: ${tableId}（他端末で同じIDを入力）` : `共有URL: ${getShareUrl()}`)
-        : "共有情報: 卓IDを入力または作成してください";
-    }
-
-    function stopSnapshotListener() {
-      if (unsubscribeSnapshot) {
-        unsubscribeSnapshot();
-        unsubscribeSnapshot = null;
-      }
-      hasReceivedSnapshot = false;
-    }
-
-    function connectToTable(id, { uploadIfEmpty = true } = {}) {
-      const sanitized = sanitizeTableId(id);
-      if (!sanitized) {
-        showToast("卓IDを入力してください", true);
-        return;
-      }
-
-      stopSnapshotListener();
-      lastAppliedRevision = 0;
-      pendingWriteRevision = null;
-      writeRevisionCounter = 0;
-      lastLocalWriteRevision = 0;
-      tableId = sanitized;
-      tableDocRef = doc(db, "tables", tableId);
-      document.getElementById("tableIdInput").value = tableId;
-      updateShareUrlDisplay();
-
+    function connectRoom(id) {
+      const sanitized = sanitizeRoomId(id);
+      if (!sanitized) { showToast("部屋IDを入力してください", true); return; }
+      stopListeners();
+      roomId = sanitized;
+      lastRevisions = { players: 0, day: 0, active: 0 };
+      registeredPlayers = {};
+      dayData = createEmptyDayData();
+      activeHanchan = defaultActiveHanchan();
       if (!IS_LOCAL_FILE) {
-        const url = new URL(window.location.href);
-        url.searchParams.set("room", tableId);
-        history.replaceState(null, "", url);
+        const u = new URL(location.href);
+        u.searchParams.set("room", roomId);
+        history.replaceState(null, "", u);
       }
-
-      saveLocalState();
+      saveLocal();
       setSyncStatus("syncing", "接続中…");
 
-      unsubscribeSnapshot = onSnapshot(
-        tableDocRef,
-        { includeMetadataChanges: true },
-        (snapshot) => handleSnapshotUpdate(snapshot, uploadIfEmpty),
-        (error) => {
-          setSyncStatus("offline", "接続エラー");
-          showToast("Firestore接続エラー", true);
-          console.error(error);
-        }
-      );
-
-      refreshFromFirestore({ silent: true });
-    }
-
-    function getOpponentOptions(playerId) {
-      return state.players
-        .filter(p => p.id !== playerId)
-        .map(p => `<option value="${p.id}">${escapeHtml(p.name)}（${p.seat}）</option>`)
-        .join("");
-    }
-
-    function switchView(view, { skipLocalSave = false } = {}) {
-      currentView = view === "home" ? "home" : +view;
-      const isHome = currentView === "home";
-
-      document.getElementById("viewHome").classList.toggle("hidden", !isHome);
-      document.getElementById("viewPlayer").classList.toggle("hidden", isHome);
-
-      document.querySelectorAll(".nav-tab").forEach(tab => {
-        const active = tab.dataset.view === String(currentView);
-        tab.classList.toggle("active", active);
-        tab.setAttribute("aria-current", active ? "page" : null);
-      });
-
-      if (isHome) {
-        document.getElementById("headerSubtitle").textContent = "全体順位・履歴";
-        renderHome();
-      } else {
-        activePlayerId = currentView;
-        const p = state.players[activePlayerId];
-        document.getElementById("headerSubtitle").textContent = `${p.name}（${p.seat}）の操作画面`;
-        renderPlayerView(activePlayerId);
-      }
-
-      if (!skipLocalSave) saveLocalState();
-    }
-
-    function renderNavLabels() {
-      state.players.forEach((p, i) => {
-        const label = document.getElementById(`tabLabel${i}`);
-        const shortName = p.name.length > 5 ? p.name.slice(0, 5) + "…" : p.name;
-        label.textContent = shortName;
-        label.title = `${p.name}（${p.seat}）`;
-      });
-    }
-
-    function renderRanking() {
-      const sorted = [...state.players].sort((a, b) => b.score - a.score || b.chips - a.chips);
-      const container = document.getElementById("rankingList");
-
-      container.innerHTML = sorted.map((p, index) => {
-        const rank = index + 1;
-        const delta = p.score - INITIAL_SCORE;
-        const deltaClass = delta > 0 ? "plus" : delta < 0 ? "minus" : "zero";
-        const rankDisplay = RANK_MEDALS[index] || String(rank);
-        const rankClass = rank === 1 ? "" : " rank-other";
-
-        return `
-          <div class="ranking-item rank-${rank}">
-            <div class="rank${rankClass}">${rankDisplay}</div>
-            <div class="player-info">
-              <div class="player-name">${escapeHtml(p.name)}</div>
-              <div class="player-seat">${p.seat}</div>
-            </div>
-            <div class="stats">
-              <div class="score-value">${formatScore(p.score)}</div>
-              <div class="delta ${deltaClass}">${formatDelta(delta)}</div>
-              <div class="chip-badge">🎰 ${p.chips} 枚</div>
-            </div>
-          </div>
-        `;
-      }).join("");
-    }
-
-    function renderTotals() {
-      const totalScore = state.players.reduce((s, p) => s + p.score, 0);
-      const totalChips = state.players.reduce((s, p) => s + p.chips, 0);
-      const expected = INITIAL_SCORE * 4;
-
-      document.getElementById("totalScore").textContent = formatScore(totalScore);
-      document.getElementById("totalChips").textContent = formatScore(totalChips);
-
-      const balanceEl = document.getElementById("balanceStatus");
-      if (totalScore === expected) {
-        balanceEl.innerHTML = '<span>バランス</span> <strong class="ok">OK</strong>';
-      } else {
-        const diff = totalScore - expected;
-        balanceEl.innerHTML = `<span>バランス</span> <strong class="ng">${formatDelta(diff)}</strong>`;
-      }
-    }
-
-    function renderHistory() {
-      const el = document.getElementById("history");
-      if (state.history.length === 0) {
-        el.innerHTML = '<div class="history-empty">まだ操作がありません</div>';
-        return;
-      }
-
-      el.innerHTML = [...state.history].reverse().map(h => `
-        <div class="history-item ${h.type}">
-          <span class="desc">${escapeHtml(h.desc)}</span>
-          <span class="time">${h.time}</span>
-        </div>
-      `).join("");
-    }
-
-    function renderInitialChips() {
-      const grid = document.getElementById("initialChipsGrid");
-      grid.innerHTML = state.players.map((p, i) => `
-        <div class="initial-chip-field">
-          <label for="initialChip${i}">${escapeHtml(p.name)}（${p.seat}）</label>
-          <input type="number" class="initial-chip-input" id="initialChip${i}"
-            min="0" step="1" value="${state.initialChips[i] ?? 0}" inputmode="numeric">
-        </div>
-      `).join("");
-
-      grid.querySelectorAll(".initial-chip-input").forEach((input, i) => {
-        input.addEventListener("change", () => {
-          const val = parseAmount(input.value);
-          state.initialChips[i] = Number.isInteger(val) && val >= 0 ? val : 0;
-          input.value = state.initialChips[i];
-          saveState();
+      unsubscribers.push(onSnapshot(collection(db, "rooms", roomId, "players"), snap => {
+        if (snap.metadata.hasPendingWrites) return;
+        const map = {};
+        snap.docs.forEach(d => {
+          const data = d.data();
+          if (!data._deleted) map[d.id] = { id: d.id, ...data };
         });
-      });
-    }
-
-    function renderHome() {
-      renderRanking();
-      renderTotals();
-      renderHistory();
-      renderInitialChips();
-      renderNavLabels();
-      updateShareUrlDisplay();
-    }
-
-    function renderPlayerView(playerId) {
-      const p = state.players[playerId];
-      const delta = p.score - INITIAL_SCORE;
-      const deltaClass = delta > 0 ? "plus" : delta < 0 ? "minus" : "";
-      const container = document.getElementById("viewPlayer");
-
-      container.innerHTML = `
-        <div class="player-hero">
-          <div class="seat">${p.seat} · P${playerId + 1}</div>
-          <input type="text" class="name-input" id="playerNameInput" value="${escapeHtml(p.name)}"
-            maxlength="12" aria-label="自分の名前">
-          <div class="hero-stats">
-            <div class="hero-stat">
-              <span class="hero-stat-label">持ち点</span>
-              <span class="hero-stat-value">${formatScore(p.score)}</span>
-            </div>
-            <div class="hero-stat">
-              <span class="hero-stat-label">収支</span>
-              <span class="hero-stat-value ${deltaClass}">${formatDelta(delta)}</span>
-            </div>
-            <div class="hero-stat">
-              <span class="hero-stat-label">チップ</span>
-              <span class="hero-stat-value chip">${p.chips} 枚</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="panel">
-          <h2>点数移動（ツモ・ロン）</h2>
-          <form class="transfer-form" id="playerScoreForm">
-            <div>
-              <label for="scoreOpponent">相手</label>
-              <select id="scoreOpponent">${getOpponentOptions(playerId)}</select>
-            </div>
-            <div class="amount-row">
-              <div>
-                <label for="scoreAmount">点数</label>
-                <input type="number" id="scoreAmount" min="0" step="1" placeholder="例: 3900" inputmode="numeric">
-              </div>
-              <button type="button" class="btn-clear" data-clear="scoreAmount" aria-label="点数入力をクリア">クリア</button>
-            </div>
-            <div class="quick-buttons" id="scoreQuickBtns">
-              <button type="button" class="quick-btn" data-amount="1000">+1000</button>
-              <button type="button" class="quick-btn" data-amount="5000">+5000</button>
-              <button type="button" class="quick-btn" data-amount="8000">+8000</button>
-            </div>
-            <div class="btn-row">
-              <button type="button" class="btn btn-pay" data-action="pay">支払う</button>
-              <button type="button" class="btn btn-receive" data-action="receive">もらう</button>
-            </div>
-          </form>
-        </div>
-
-        <div class="panel">
-          <h2>チップ移動</h2>
-          <form class="transfer-form" id="playerChipForm">
-            <div>
-              <label for="chipOpponent">相手</label>
-              <select id="chipOpponent">${getOpponentOptions(playerId)}</select>
-            </div>
-            <div class="amount-row">
-              <div>
-                <label for="chipAmount">枚数</label>
-                <input type="number" id="chipAmount" min="0" step="1" placeholder="例: 5" inputmode="numeric">
-              </div>
-              <button type="button" class="btn-clear" data-clear="chipAmount" aria-label="チップ枚数入力をクリア">クリア</button>
-            </div>
-            <div class="quick-buttons" id="chipQuickBtns">
-              ${CHIP_QUICK.map(v => `<button type="button" class="quick-btn" data-amount="${v}">+${v}</button>`).join("")}
-            </div>
-            <div class="btn-row">
-              <button type="button" class="btn btn-pay" data-action="pay">渡す</button>
-              <button type="button" class="btn btn-receive" data-action="receive">もらう</button>
-            </div>
-          </form>
-        </div>
-      `;
-
-      container.querySelector("#playerNameInput").addEventListener("change", e => {
-        pushUndo();
-        state.players[playerId].name = e.target.value.trim() || `プレイヤー${playerId + 1}`;
-        saveState();
+        registeredPlayers = map;
         renderAll();
-      });
+        setSyncStatus("online", `同期中 · ${roomId}`);
+      }, e => { setSyncStatus("offline", "接続エラー"); console.error(e); }));
 
-      container.querySelector("#scoreQuickBtns").addEventListener("click", e => {
-        const btn = e.target.closest("[data-amount]");
-        if (!btn) return;
-        addToAmountInput("scoreAmount", +btn.dataset.amount);
-      });
-
-      container.querySelector("#chipQuickBtns").addEventListener("click", e => {
-        const btn = e.target.closest("[data-amount]");
-        if (!btn) return;
-        addToAmountInput("chipAmount", +btn.dataset.amount);
-      });
-
-      container.querySelectorAll("[data-clear]").forEach(btn => {
-        btn.addEventListener("click", () => clearAmountInput(btn.dataset.clear));
-      });
-
-      container.querySelector("#playerScoreForm").addEventListener("click", e => {
-        const btn = e.target.closest("[data-action]");
-        if (!btn) return;
-        e.preventDefault();
-        const opponentId = +document.getElementById("scoreOpponent").value;
-        const amount = parseAmount(document.getElementById("scoreAmount").value);
-        const pay = btn.dataset.action === "pay";
-        const fromId = pay ? playerId : opponentId;
-        const toId = pay ? opponentId : playerId;
-        if (transferScore(fromId, toId, amount)) {
-          document.getElementById("scoreAmount").value = "";
+      unsubscribers.push(onSnapshot(roomRef("days", todayKey()), snap => {
+        if (!snap.exists() || snap.metadata.hasPendingWrites) return;
+        if (applyRemote("day", snap.data())) {
+          isApplyingRemote = true;
+          dayData = normalizeDayData(snap.data());
+          isApplyingRemote = false;
+          renderAll();
         }
-      });
+      }));
 
-      container.querySelector("#playerChipForm").addEventListener("click", e => {
-        const btn = e.target.closest("[data-action]");
-        if (!btn) return;
-        e.preventDefault();
-        const opponentId = +document.getElementById("chipOpponent").value;
-        const amount = parseAmount(document.getElementById("chipAmount").value);
-        const pay = btn.dataset.action === "pay";
-        const fromId = pay ? playerId : opponentId;
-        const toId = pay ? opponentId : playerId;
-        if (transferChip(fromId, toId, amount)) {
-          document.getElementById("chipAmount").value = "";
+      unsubscribers.push(onSnapshot(roomRef("active", "hanchan"), snap => {
+        if (!snap.exists()) return;
+        if (snap.metadata.hasPendingWrites) return;
+        const data = snap.data();
+        const rev = Number(data.revision) || 0;
+        if (rev === lastLocalWrite.active) { lastRevisions.active = rev; return; }
+        if (applyRemote("active", data)) {
+          isApplyingRemote = true;
+          activeHanchan = normalizeActiveHanchan(data);
+          hanchanSubView = activeHanchan.gameStarted ? "play" : "setup";
+          isApplyingRemote = false;
+          renderAll();
         }
+      }));
+
+      refreshAll({ silent: true });
+    }
+
+    async function refreshAll({ silent = false } = {}) {
+      if (!roomId) return;
+      document.getElementById("refreshBtn").disabled = true;
+      setSyncStatus("syncing", "更新中…");
+      try {
+        const [playersSnap, daySnap, activeSnap] = await Promise.all([
+          getDocs(collection(db, "rooms", roomId, "players")),
+          getDocFromServer(roomRef("days", todayKey())),
+          getDocFromServer(roomRef("active", "hanchan"))
+        ]);
+        const map = {};
+        playersSnap.docs.forEach(d => {
+          const data = d.data();
+          if (!data._deleted) map[d.id] = { id: d.id, ...data };
+        });
+        registeredPlayers = map;
+        if (daySnap.exists()) dayData = normalizeDayData(daySnap.data());
+        if (activeSnap.exists()) {
+          activeHanchan = normalizeActiveHanchan(activeSnap.data());
+          hanchanSubView = activeHanchan.gameStarted ? "play" : "setup";
+        }
+        renderAll();
+        setSyncStatus("online", `同期中 · ${roomId}`);
+        if (!silent) showToast("最新データに更新しました");
+      } catch (e) {
+        setSyncStatus("offline", "更新エラー");
+        if (!silent) showToast("データ取得に失敗", true);
+        console.error(e);
+      } finally {
+        document.getElementById("refreshBtn").disabled = false;
+      }
+    }
+
+    function getPlayerList() { return Object.values(registeredPlayers); }
+
+    function switchView(view) {
+      currentView = view;
+      document.querySelectorAll(".nav-tab").forEach(t => {
+        t.classList.toggle("active", t.dataset.view === view);
       });
-
-      renderNavLabels();
-    }
-
-    function parseAmount(value) {
-      const n = parseInt(String(value).trim(), 10);
-      return Number.isFinite(n) ? n : NaN;
-    }
-
-    function addToAmountInput(inputId, amount) {
-      const input = document.getElementById(inputId);
-      if (!input) return;
-      const current = parseAmount(input.value);
-      input.value = (Number.isInteger(current) && current >= 0 ? current : 0) + amount;
-    }
-
-    function clearAmountInput(inputId) {
-      const input = document.getElementById(inputId);
-      if (!input) return;
-      input.value = "";
-      input.focus();
+      document.getElementById("viewRanking").classList.toggle("hidden", view !== "ranking");
+      document.getElementById("viewDaily").classList.toggle("hidden", view !== "daily");
+      document.getElementById("viewHanchan").classList.toggle("hidden", view !== "hanchan");
+      document.getElementById("viewPlayers").classList.toggle("hidden", view !== "players");
+      const titles = { ranking: "総合ランキング", daily: "今日の対局セット", hanchan: "半荘計算", players: "プレイヤー管理" };
+      document.getElementById("headerSubtitle").textContent = titles[view] || "";
+      renderAll();
+      saveLocal();
     }
 
     function renderAll() {
-      renderNavLabels();
-      if (currentView === "home") {
-        renderHome();
-      } else {
-        renderPlayerView(activePlayerId);
-      }
+      if (currentView === "ranking") renderRanking();
+      else if (currentView === "daily") renderDaily();
+      else if (currentView === "hanchan") renderHanchan();
+      else if (currentView === "players") renderPlayers();
     }
 
-    function nowTime() {
-      const d = new Date();
-      return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
-    }
-
-    function transferScore(fromId, toId, amount) {
-      if (fromId === toId) {
-        showToast("相手を選んでください", true);
-        return false;
-      }
-      if (!Number.isInteger(amount) || amount <= 0) {
-        showToast("正の点数を入力してください", true);
-        return false;
-      }
-
-      const from = state.players[fromId];
-      const to = state.players[toId];
-
-      if (from.score < amount) {
-        showToast(`${from.name}の持ち点が足りません`, true);
-        return false;
-      }
-
-      pushUndo();
-      from.score -= amount;
-      to.score += amount;
-
-      state.history.push({
-        type: "score",
-        desc: `点数 ${from.name} → ${to.name}  ${formatScore(amount)}点`,
-        time: nowTime()
+    function renderRanking() {
+      const sorted = getPlayerList().sort((a, b) => totalScore(b) - totalScore(a));
+      const el = document.getElementById("viewRanking");
+      el.innerHTML = `
+        <div class="panel">
+          <h2>部屋の共有</h2>
+          <p class="panel-desc">同じ部屋IDの端末で全データが同期されます</p>
+          <div class="room-row">
+            <div><label for="roomIdInput">部屋ID</label><input type="text" id="roomIdInput" value="${escapeHtml(roomId)}" maxlength="20"></div>
+            <button type="button" class="btn btn-primary" id="connectBtn" style="margin-top:18px;padding:10px 14px;width:auto">接続</button>
+          </div>
+          <button type="button" class="btn btn-secondary" id="newRoomBtn" style="margin-top:8px">新しい部屋を作成</button>
+          <div class="share-url">${roomId ? (IS_LOCAL_FILE ? `部屋ID: ${roomId}` : `URL: ${escapeHtml(getShareUrl())}`) : "部屋IDを設定してください"}</div>
+        </div>
+        <div class="panel">
+          <h2>総合ランキング</h2>
+          <p class="panel-desc">合計スコア = 通算得点 ＋ (通算チップ × ${formatScore(CHIP_VALUE)})</p>
+          <div class="ranking-list">${sorted.length ? sorted.map((p, i) => `
+            <div class="ranking-item ${i === 0 ? "rank-1" : ""}">
+              <div class="rank">${RANK_MEDALS[i] || i + 1}</div>
+              <div class="avatar" style="background:${escapeHtml(p.color || "#333")}">${escapeHtml(p.icon || "🀄")}</div>
+              <div>
+                <div class="name">${escapeHtml(p.name)}</div>
+                <div class="sub">${Number(p.totalGames) || 0} 半荘 · 得点 ${formatDelta(Number(p.totalPoints) || 0)} · チップ ${formatChipDelta(Number(p.totalChips) || 0)}</div>
+              </div>
+              <div class="score-block">
+                <div class="total-score">${formatScore(totalScore(p))}</div>
+                <div class="detail">合計スコア</div>
+              </div>
+            </div>`).join("") : '<div class="history-empty">プレイヤーを登録してください</div>'}
+          </div>
+        </div>`;
+      document.getElementById("connectBtn")?.addEventListener("click", () => connectRoom(document.getElementById("roomIdInput").value));
+      document.getElementById("newRoomBtn")?.addEventListener("click", () => {
+        const id = generateRoomId();
+        connectRoom(id);
+        showToast(`部屋「${id}」を作成しました`);
       });
-
-      saveState();
-      renderAll();
-      showToast(`${from.name} → ${to.name}  ${formatScore(amount)}点`);
-      return true;
     }
 
-    function transferChip(fromId, toId, amount) {
-      if (fromId === toId) {
-        showToast("相手を選んでください", true);
-        return false;
-      }
-      if (!Number.isInteger(amount) || amount <= 0) {
-        showToast("正の枚数を入力してください", true);
-        return false;
-      }
-
-      const from = state.players[fromId];
-      const to = state.players[toId];
-
-      if (from.chips < amount) {
-        showToast(`${from.name}のチップが足りません`, true);
-        return false;
-      }
-
-      pushUndo();
-      from.chips -= amount;
-      to.chips += amount;
-
-      state.history.push({
-        type: "chip",
-        desc: `チップ ${from.name} → ${to.name}  ${amount}枚`,
-        time: nowTime()
-      });
-
-      saveState();
-      renderAll();
-      showToast(`${from.name} → ${to.name}  ${amount}枚`);
-      return true;
+    function renderDaily() {
+      const hanchans = dayData.hanchans || [];
+      const dayTotals = calcDayTotals(hanchans);
+      const el = document.getElementById("viewDaily");
+      el.innerHTML = `
+        <div class="panel">
+          <h2>本日の対局セット <span class="badge-open">進行中</span></h2>
+          <p class="panel-desc">${dayData.date} · ${hanchans.length} 半荘</p>
+          ${hanchans.length ? `<div class="day-summary">${Object.entries(dayTotals).flatMap(([pid, t]) => {
+            const p = registeredPlayers[pid] || { name: "?", icon: "🀄", color: "#333" };
+            return [
+              `<div class="day-stat"><div class="val">${formatDelta(t.points)}</div><div class="lbl">${escapeHtml(p.name)} 得点</div></div>`,
+              `<div class="day-stat"><div class="val">${formatChipDelta(t.chips)}</div><div class="lbl">${escapeHtml(p.name)} チップ</div></div>`
+            ];
+          }).join("")}</div>` : ""}
+          ${hanchans.map((h, i) => `
+            <div class="hanchan-card">
+              <div class="title">第${i + 1}半荘 · ${h.finishedAt || ""}${Number.isFinite(h.initialChipCount) ? ` · 初期チップ${h.initialChipCount}枚` : ""}</div>
+              ${(h.results || []).map(r => {
+                const chipDelta = getChipDelta(r, h);
+                return `
+                <div class="hanchan-result-row">
+                  <span>${escapeHtml(r.icon || "")} ${escapeHtml(r.playerName)}（${r.seat}）</span>
+                  <span><span class="delta ${r.scoreDelta >= 0 ? "plus" : "minus"}">${formatDelta(r.scoreDelta)}</span> · <span class="delta ${chipDelta >= 0 ? "plus" : "minus"}">🎰${formatChipDelta(chipDelta)}</span></span>
+                </div>`;
+              }).join("")}
+            </div>`).join("") || '<div class="history-empty">まだ半荘がありません</div>'}
+          ${hanchans.length ? `<button type="button" class="btn btn-success" id="settleDayBtn" style="margin-top:12px">日精算を完了してランキングに反映</button>` : ""}
+        </div>`;
+      document.getElementById("settleDayBtn")?.addEventListener("click", settleDay);
     }
 
-    function applyInitialChips() {
-      const inputs = document.querySelectorAll(".initial-chip-input");
-      pushUndo();
-      inputs.forEach((input, i) => {
-        const val = parseAmount(input.value);
-        const chips = Number.isInteger(val) && val >= 0 ? val : 0;
-        state.players[i].chips = chips;
-        state.initialChips[i] = chips;
-        input.value = chips;
-      });
-
-      state.history.push({
-        type: "chip",
-        desc: `初期チップ設定（${state.players.map(p => `${p.name}:${p.chips}枚`).join(" / ")}）`,
-        time: nowTime()
-      });
-
-      saveState();
-      renderAll();
-      showToast("初期チップを設定しました");
-    }
-
-    function resetGameState() {
-      undoStack.length = 0;
-      state.players = SEATS.map((seat, i) => ({
-        id: i,
-        seat,
-        name: `プレイヤー${i + 1}`,
-        score: INITIAL_SCORE,
-        chips: 0
+    function calcDayTotals(hanchans) {
+      const totals = {};
+      hanchans.forEach(h => (h.results || []).forEach(r => {
+        if (!totals[r.playerId]) totals[r.playerId] = { points: 0, chips: 0 };
+        totals[r.playerId].points += r.scoreDelta;
+        totals[r.playerId].chips += getChipDelta(r, h);
       }));
-      state.initialChips = [0, 0, 0, 0];
-      state.history = [];
-      lastAppliedRevision = 0;
-      pendingWriteRevision = null;
-      lastLocalWriteRevision = 0;
+      return totals;
+    }
+
+    async function settleDay() {
+      const hanchansToSettle = [...(dayData.hanchans || [])];
+      if (!hanchansToSettle.length) { showToast("半荘データがありません", true); return; }
+      if (!confirm("日精算を完了しますか？\n本日の成績が通算ランキングに反映され、半荘履歴はリセットされます。")) return;
+
+      const totals = calcDayTotals(hanchansToSettle);
+      const batch = writeBatch(db);
+      Object.entries(totals).forEach(([pid, t]) => {
+        const p = registeredPlayers[pid];
+        if (!p) return;
+        const ref = doc(db, "rooms", roomId, "players", pid);
+        const hanchanCount = hanchansToSettle.filter(h => h.results?.some(r => r.playerId === pid)).length;
+        batch.set(ref, {
+          ...p,
+          totalGames: (Number(p.totalGames) || 0) + hanchanCount,
+          totalPoints: (Number(p.totalPoints) || 0) + t.points,
+          totalChips: (Number(p.totalChips) || 0) + t.chips,
+          revision: nextRev(lastRevisions.players),
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      });
+
+      const clearedDayData = createEmptyDayData();
+      const dayRevision = nextRev(lastRevisions.day);
+      batch.set(roomRef("days", clearedDayData.date), {
+        ...clearedDayData,
+        lastSettledAt: serverTimestamp(),
+        revision: dayRevision,
+        updatedAt: serverTimestamp()
+      });
+
+      try {
+        await batch.commit();
+        dayData = clearedDayData;
+        lastRevisions.day = dayRevision;
+        lastLocalWrite.day = dayRevision;
+        showToast("日精算を完了しました。新しいセットを開始できます");
+        renderAll();
+      } catch (e) {
+        showToast("日精算に失敗しました", true);
+        console.error(e);
+      }
+    }
+
+    function renderHanchan() {
+      const el = document.getElementById("viewHanchan");
+      if (!activeHanchan.gameStarted) {
+        el.innerHTML = renderHanchanSetup();
+        bindHanchanSetup();
+      } else {
+        el.innerHTML = renderHanchanPlay();
+        bindHanchanPlay();
+      }
+    }
+
+    function renderHanchanSetup() {
+      const plist = getPlayerList();
+      const opts = (sel, idx) => {
+        const cur = activeHanchan.seats[idx]?.playerId || "";
+        return `<option value="">-- 選択 --</option>` + plist.map(p =>
+          `<option value="${p.id}" ${p.id === cur ? "selected" : ""}>${escapeHtml(p.icon)} ${escapeHtml(p.name)}</option>`).join("");
+      };
+      return `
+        <div class="panel">
+          <h2>対局開始設定</h2>
+          <p class="panel-desc">登録プレイヤーから4人を選び、初期点数・チップを設定</p>
+          <div class="setup-grid">
+            <div><label>初期持ち点（全員共通）</label><input type="number" id="setupInitialScore" value="${activeHanchan.initialScore}" min="1000" step="1000"></div>
+            <div><label>初期チップ枚数（全員共通）</label><input type="number" id="setupInitialChipCount" value="${activeHanchan.initialChipCount ?? 0}" min="0" step="1"></div>
+            ${SEATS.map((s, i) => `
+              <div class="setup-seat">
+                <span class="seat-label">${s}</span>
+                <select id="setupPlayer${i}">${opts(s, i)}</select>
+              </div>`).join("")}
+          </div>
+          <button type="button" class="btn btn-primary" id="startGameBtn" style="margin-top:14px">対局開始</button>
+        </div>`;
+    }
+
+    function bindHanchanSetup() {
+      document.getElementById("startGameBtn")?.addEventListener("click", startGame);
+    }
+
+    async function startGame() {
+      const plist = getPlayerList();
+      if (plist.length < 4) { showToast("プレイヤーを4人以上登録してください", true); return; }
+      const ids = SEATS.map((_, i) => document.getElementById(`setupPlayer${i}`).value);
+      if (ids.some(id => !id)) { showToast("4人すべて選択してください", true); return; }
+      if (new Set(ids).size !== 4) { showToast("同じプレイヤーを重複選択できません", true); return; }
+
+      const initScore = parseInt(document.getElementById("setupInitialScore").value, 10) || INITIAL_SCORE;
+      const initChipCount = Math.max(0, parseInt(document.getElementById("setupInitialChipCount").value, 10) || 0);
+
+      activeHanchan = {
+        gameStarted: true,
+        initialScore: initScore,
+        initialChipCount: initChipCount,
+        seats: SEATS.map((seat, i) => {
+          const p = registeredPlayers[ids[i]];
+          return {
+            seat, playerId: p.id, playerName: p.name, icon: p.icon, color: p.color,
+            score: initScore, chips: initChipCount
+          };
+        }),
+        history: [{ type: "info", desc: `対局開始（初期${formatScore(initScore)}点 / チップ${initChipCount}枚×全員）`, time: nowTime() }],
+        revision: 0
+      };
+      hanchanSubView = "play";
+      undoStack = [];
+      await saveActiveHanchan();
+      renderHanchan();
+      showToast("対局を開始しました");
+    }
+
+    function renderHanchanPlay() {
+      const seat = activeHanchan.seats[activeSeat];
+      const delta = seat.score - activeHanchan.initialScore;
+      const dc = delta > 0 ? "plus" : delta < 0 ? "minus" : "";
+      return `
+        <div class="total-bar">
+          <div><span>合計持ち点</span> <strong>${formatScore(activeHanchan.seats.reduce((s, p) => s + p.score, 0))}</strong></div>
+          <div><span>合計チップ</span> <strong>${activeHanchan.seats.reduce((s, p) => s + p.chips, 0)}</strong></div>
+          <div id="balanceStatus"></div>
+        </div>
+        <div class="seat-tabs">${activeHanchan.seats.map((s, i) =>
+          `<button type="button" class="seat-tab ${i === activeSeat ? "active" : ""}" data-seat="${i}">${escapeHtml(s.icon)} ${escapeHtml(s.playerName)}<br><small>${s.seat}</small></button>`).join("")}</div>
+        <div class="player-hero">
+          <div class="avatar-lg" style="background:${escapeHtml(seat.color)}">${escapeHtml(seat.icon)}</div>
+          <div style="font-weight:700">${escapeHtml(seat.playerName)}（${seat.seat}）</div>
+          <div class="hero-stats">
+            <div><div class="hero-stat-label">持ち点</div><div class="hero-stat-value">${formatScore(seat.score)}</div></div>
+            <div><div class="hero-stat-label">収支</div><div class="hero-stat-value ${dc}">${formatDelta(delta)}</div></div>
+            <div><div class="hero-stat-label">チップ</div><div class="hero-stat-value chip">${seat.chips}枚</div></div>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>点数移動</h2>
+          <div class="transfer-form">
+            <div><label>相手</label><select id="scoreOpponent">${activeHanchan.seats.map((o, idx) =>
+              idx !== activeSeat ? `<option value="${idx}">${escapeHtml(o.playerName)}（${o.seat}）</option>` : "").join("")}</select></div>
+            <div class="amount-row">
+              <div><label>点数</label><input type="number" id="scoreAmount" min="0" placeholder="3900"></div>
+              <button type="button" class="btn-clear" data-clear="scoreAmount">クリア</button>
+            </div>
+            <div class="quick-buttons">
+              <button type="button" class="quick-btn" data-amt="1000">+1000</button>
+              <button type="button" class="quick-btn" data-amt="5000">+5000</button>
+              <button type="button" class="quick-btn" data-amt="8000">+8000</button>
+            </div>
+            <div class="btn-row">
+              <button type="button" class="btn btn-pay" data-act="score-pay">支払う</button>
+              <button type="button" class="btn btn-receive" data-act="score-recv">もらう</button>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>チップ移動</h2>
+          <div class="transfer-form">
+            <div><label>相手</label><select id="chipOpponent">${activeHanchan.seats.map((o, idx) =>
+              idx !== activeSeat ? `<option value="${idx}">${escapeHtml(o.playerName)}（${o.seat}）</option>` : "").join("")}</select></div>
+            <div class="amount-row">
+              <div><label>枚数</label><input type="number" id="chipAmount" min="0" placeholder="5"></div>
+              <button type="button" class="btn-clear" data-clear="chipAmount">クリア</button>
+            </div>
+            <div class="quick-buttons">${CHIP_QUICK.map(v => `<button type="button" class="quick-btn" data-amt="${v}">+${v}</button>`).join("")}</div>
+            <div class="btn-row">
+              <button type="button" class="btn btn-pay" data-act="chip-pay">渡す</button>
+              <button type="button" class="btn btn-receive" data-act="chip-recv">もらう</button>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>操作履歴</h2>
+          <div class="history">${(activeHanchan.history || []).length ? [...activeHanchan.history].reverse().map(h =>
+            `<div class="history-item ${h.type}"><span class="desc">${escapeHtml(h.desc)}</span><span>${h.time}</span></div>`).join("") : '<div class="history-empty">操作なし</div>'}</div>
+        </div>
+        <div class="actions-bar">
+          <button type="button" class="btn btn-secondary" id="undoBtn">1手戻す</button>
+          <button type="button" class="btn btn-success" id="settleHanchanBtn">半荘精算（セットに追加）</button>
+        </div>`;
+    }
+
+    function bindHanchanPlay() {
+      const expected = activeHanchan.initialScore * 4;
+      const total = activeHanchan.seats.reduce((s, p) => s + p.score, 0);
+      const bal = document.getElementById("balanceStatus");
+      if (bal) bal.innerHTML = total === expected
+        ? '<span>バランス</span> <strong class="ok">OK</strong>'
+        : `<span>バランス</span> <strong class="ng">${formatDelta(total - expected)}</strong>`;
+
+      document.querySelectorAll(".seat-tab").forEach(btn => {
+        btn.addEventListener("click", () => { activeSeat = +btn.dataset.seat; renderHanchan(); saveLocal(); });
+      });
+      document.querySelectorAll("[data-clear]").forEach(b => b.addEventListener("click", () => {
+        const el = document.getElementById(b.dataset.clear);
+        if (el) el.value = "";
+      }));
+      document.querySelectorAll(".quick-btn").forEach(b => b.addEventListener("click", () => {
+        const inp = b.closest(".panel")?.querySelector("input[type=number]");
+        if (inp) inp.value = (parseInt(inp.value, 10) || 0) + (+b.dataset.amt);
+      }));
+      document.querySelector("[data-act=score-pay]")?.addEventListener("click", () => doTransfer("score", true));
+      document.querySelector("[data-act=score-recv]")?.addEventListener("click", () => doTransfer("score", false));
+      document.querySelector("[data-act=chip-pay]")?.addEventListener("click", () => doTransfer("chip", true));
+      document.querySelector("[data-act=chip-recv]")?.addEventListener("click", () => doTransfer("chip", false));
+      document.getElementById("undoBtn")?.addEventListener("click", undo);
+      document.getElementById("settleHanchanBtn")?.addEventListener("click", settleHanchan);
+    }
+
+    function doTransfer(type, pay) {
+      const oppIdx = +(type === "score" ? document.getElementById("scoreOpponent") : document.getElementById("chipOpponent")).value;
+      const amt = parseInt((type === "score" ? document.getElementById("scoreAmount") : document.getElementById("chipAmount")).value, 10);
+      if (!Number.isInteger(amt) || amt <= 0) { showToast("正の数を入力してください", true); return; }
+      const fromIdx = pay ? activeSeat : oppIdx;
+      const toIdx = pay ? oppIdx : activeSeat;
+      pushUndo();
+      if (type === "score") {
+        const from = activeHanchan.seats[fromIdx], to = activeHanchan.seats[toIdx];
+        if (from.score < amt) { undoStack.pop(); showToast(`${from.playerName}の持ち点が足りません`, true); return; }
+        from.score -= amt; to.score += amt;
+        activeHanchan.history.push({ type: "score", desc: `点数 ${from.playerName}→${to.playerName} ${formatScore(amt)}点`, time: nowTime() });
+        document.getElementById("scoreAmount").value = "";
+      } else {
+        const from = activeHanchan.seats[fromIdx], to = activeHanchan.seats[toIdx];
+        if (from.chips < amt) { undoStack.pop(); showToast(`${from.playerName}のチップが足りません`, true); return; }
+        from.chips -= amt; to.chips += amt;
+        activeHanchan.history.push({ type: "chip", desc: `チップ ${from.playerName}→${to.playerName} ${amt}枚`, time: nowTime() });
+        document.getElementById("chipAmount").value = "";
+      }
+      saveActiveHanchan();
+      renderHanchan();
+    }
+
+    function pushUndo() {
+      undoStack.push(JSON.stringify({ seats: activeHanchan.seats, history: activeHanchan.history }));
+      if (undoStack.length > 50) undoStack.shift();
+    }
+
+    function undo() {
+      if (!undoStack.length) { showToast("戻せる操作がありません", true); return; }
+      const prev = JSON.parse(undoStack.pop());
+      activeHanchan.seats = prev.seats;
+      activeHanchan.history = prev.history;
+      saveActiveHanchan();
+      renderHanchan();
+      showToast("1手戻しました");
+    }
+
+    async function settleHanchan() {
+      if (!activeHanchan.gameStarted) return;
+      const expected = activeHanchan.initialScore * 4;
+      const total = activeHanchan.seats.reduce((s, p) => s + p.score, 0);
+      if (total !== expected) {
+        if (!confirm(`持ち点合計が${formatDelta(total - expected)}ずれています。\n半荘精算を続行しますか？`)) return;
+      }
+      if (!confirm("半荘精算して今日のセットに追加しますか？\nスコアは次半荘用にリセットされます。")) return;
+
+      const initChips = activeHanchan.initialChipCount ?? 0;
+      const results = activeHanchan.seats.map(s => ({
+        playerId: s.playerId, playerName: s.playerName, icon: s.icon, color: s.color,
+        seat: s.seat, scoreDelta: s.score - activeHanchan.initialScore,
+        initialChipCount: initChips,
+        chipsAtEnd: s.chips,
+        chipDelta: s.chips - initChips,
+        finalScore: s.score
+      }));
+      const hanchan = {
+        id: genHanchanId(), finishedAt: nowTime(),
+        initialScore: activeHanchan.initialScore,
+        initialChipCount: initChips,
+        results, history: activeHanchan.history
+      };
+      if (!dayData.hanchans) dayData.hanchans = [];
+      dayData.hanchans.push(hanchan);
+
+      activeHanchan = defaultActiveHanchan();
+      hanchanSubView = "setup";
+      undoStack = [];
+
+      try {
+        await saveDayData();
+        await saveActiveHanchan();
+        showToast("半荘精算を追加しました");
+        renderAll();
+      } catch (e) {
+        showToast("半荘精算に失敗しました", true);
+      }
+    }
+
+    function renderPlayers() {
+      const list = getPlayerList().sort((a, b) => totalScore(b) - totalScore(a));
+      document.getElementById("viewPlayers").innerHTML = `
+        <div class="panel">
+          <h2>プレイヤー管理</h2>
+          <p class="panel-desc">名前とアイコンを登録。Firestoreで全端末に同期されます</p>
+          <button type="button" class="btn btn-primary" id="addPlayerBtn">＋ プレイヤーを追加</button>
+          <div class="player-list" style="margin-top:12px">${list.length ? list.map(p => `
+            <div class="player-item">
+              <div class="avatar" style="background:${escapeHtml(p.color)}">${escapeHtml(p.icon)}</div>
+              <div>
+                <div class="pname">${escapeHtml(p.name)}</div>
+                <div class="pstats">${Number(p.totalGames)||0}半荘 · 得点${formatDelta(Number(p.totalPoints)||0)} · チップ${formatChipDelta(Number(p.totalChips)||0)} · 合計${formatScore(totalScore(p))}</div>
+              </div>
+              <div class="pactions">
+                <button type="button" class="icon-btn" data-edit="${p.id}">✏️</button>
+                <button type="button" class="icon-btn" data-del="${p.id}">🗑</button>
+              </div>
+            </div>`).join("") : '<div class="history-empty">プレイヤーがいません</div>'}
+          </div>
+        </div>`;
+      document.getElementById("addPlayerBtn")?.addEventListener("click", () => openPlayerModal());
+      document.querySelectorAll("[data-edit]").forEach(b => b.addEventListener("click", () => openPlayerModal(b.dataset.edit)));
+      document.querySelectorAll("[data-del]").forEach(b => b.addEventListener("click", () => deletePlayer(b.dataset.del)));
+    }
+
+    function openPlayerModal(id = null) {
+      editingPlayerId = id;
+      const p = id ? registeredPlayers[id] : null;
+      document.getElementById("playerModalTitle").textContent = id ? "プレイヤー編集" : "プレイヤー登録";
+      document.getElementById("playerNameInput").value = p?.name || "";
+      selectedIcon = p?.icon || ICON_OPTIONS[0];
+      selectedColor = p?.color || COLOR_OPTIONS[0];
+      document.getElementById("iconPicker").innerHTML = ICON_OPTIONS.map(ic =>
+        `<button type="button" class="pick-btn ${ic === selectedIcon ? "selected" : ""}" data-icon="${ic}">${ic}</button>`).join("");
+      document.getElementById("colorPicker").innerHTML = COLOR_OPTIONS.map(c =>
+        `<button type="button" class="color-btn ${c === selectedColor ? "selected" : ""}" data-color="${c}" style="background:${c}"></button>`).join("");
+      document.getElementById("iconPicker").querySelectorAll(".pick-btn").forEach(b => b.addEventListener("click", () => {
+        selectedIcon = b.dataset.icon;
+        document.querySelectorAll(".pick-btn").forEach(x => x.classList.toggle("selected", x.dataset.icon === selectedIcon));
+      }));
+      document.getElementById("colorPicker").querySelectorAll(".color-btn").forEach(b => b.addEventListener("click", () => {
+        selectedColor = b.dataset.color;
+        document.querySelectorAll(".color-btn").forEach(x => x.classList.toggle("selected", x.dataset.color === selectedColor));
+      }));
+      document.getElementById("playerModal").classList.remove("hidden");
+    }
+
+    function closePlayerModal() {
+      document.getElementById("playerModal").classList.add("hidden");
+      editingPlayerId = null;
+    }
+
+    async function savePlayerModal() {
+      const name = document.getElementById("playerNameInput").value.trim();
+      if (!name) { showToast("名前を入力してください", true); return; }
+      const id = editingPlayerId || genId();
+      const existing = registeredPlayers[id];
+      const player = {
+        id, name, icon: selectedIcon, color: selectedColor,
+        totalGames: existing?.totalGames || 0,
+        totalPoints: existing?.totalPoints || 0,
+        totalChips: existing?.totalChips || 0
+      };
+      await savePlayer(player);
+      closePlayerModal();
+      showToast(editingPlayerId ? "更新しました" : "登録しました");
+    }
+
+    async function deletePlayer(id) {
+      if (!confirm("このプレイヤーを削除しますか？")) return;
+      try {
+        await deleteDoc(doc(db, "rooms", roomId, "players", id));
+        delete registeredPlayers[id];
+        renderPlayers();
+        showToast("削除しました");
+      } catch (e) {
+        showToast("削除に失敗しました", true);
+      }
     }
 
     document.getElementById("navTabs").addEventListener("click", e => {
       const tab = e.target.closest(".nav-tab");
-      if (!tab) return;
-      switchView(tab.dataset.view);
+      if (tab) switchView(tab.dataset.view);
+    });
+    document.getElementById("refreshBtn").addEventListener("click", () => refreshAll());
+    document.getElementById("playerModalCancel").addEventListener("click", closePlayerModal);
+    document.getElementById("playerModalSave").addEventListener("click", savePlayerModal);
+    document.getElementById("playerModal").addEventListener("click", e => {
+      if (e.target.id === "playerModal") closePlayerModal();
     });
 
-    document.getElementById("connectBtn").addEventListener("click", () => {
-      connectToTable(document.getElementById("tableIdInput").value);
-    });
-
-    document.getElementById("refreshBtn").addEventListener("click", () => {
-      refreshFromFirestore();
-    });
-
-    document.getElementById("newTableBtn").addEventListener("click", () => {
-      const newId = generateTableId();
-      document.getElementById("tableIdInput").value = newId;
-      resetGameState();
-      connectToTable(newId);
-      switchView("home");
-      saveState();
-      showToast(`新しい卓「${newId}」を作成しました`);
-    });
-
-    document.getElementById("copyLinkBtn").addEventListener("click", async () => {
-      if (!tableId) {
-        showToast("先に卓IDを設定してください", true);
-        return;
-      }
-      const text = getShareText();
-      try {
-        await navigator.clipboard.writeText(text);
-        showToast(IS_LOCAL_FILE ? "卓IDをコピーしました" : "共有URLをコピーしました");
-      } catch (_) {
-        showToast(text, false);
-      }
-    });
-
-    document.getElementById("undoBtn").addEventListener("click", () => {
-      if (undoStack.length === 0) {
-        showToast("戻せる操作がありません", true);
-        return;
-      }
-      const prev = JSON.parse(undoStack.pop());
-      state.players = prev.players;
-      state.history = prev.history;
-      state.initialChips = prev.initialChips ?? state.initialChips;
-      saveState();
-      renderAll();
-      showToast("1手戻しました");
-    });
-
-    document.getElementById("resetBtn").addEventListener("click", () => {
-      if (!confirm("本当に初期化しますか？\nすべてのデータが消え、新しいゲームを開始します。\n接続中の全端末にも反映されます。")) return;
-
-      resetGameState();
-      currentView = "home";
-      saveState();
-      switchView("home");
-      showToast("新しいゲームを開始しました");
-    });
-
-    document.getElementById("setInitialChipsBtn").addEventListener("click", applyInitialChips);
-
-    window.addEventListener("pagehide", saveLocalState);
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "hidden") saveLocalState();
-    });
-
-    const restored = loadLocalState();
-    switchView(restored ? currentView : "home", { skipLocalSave: true });
-
-    const urlRoom = new URLSearchParams(window.location.search).get("room");
-    const initialTableId = sanitizeTableId(urlRoom) || sanitizeTableId(localStorage.getItem(TABLE_ID_KEY)) || generateTableId();
-
-    document.getElementById("tableIdInput").value = initialTableId;
-    connectToTable(initialTableId);
+    loadLocal();
+    const urlRoom = new URLSearchParams(location.search).get("room");
+    const initRoom = sanitizeRoomId(urlRoom) || sanitizeRoomId(localStorage.getItem(TABLE_ID_KEY)) || generateRoomId();
+    connectRoom(initRoom);
+    switchView(currentView || "ranking");
   </script>
 </body>
 </html>
