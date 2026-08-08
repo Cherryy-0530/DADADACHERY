@@ -92,7 +92,7 @@
     .hanchan-result-row { display: flex; justify-content: space-between; font-size: .75rem; padding: 4px 0; }
     .hanchan-result-row .delta.plus { color: var(--plus); }
     .hanchan-result-row .delta.minus { color: var(--minus); }
-    .seat-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
+    .seat-tabs { display: grid; gap: 6px; margin-bottom: 12px; }
     .seat-tab { padding: 8px 4px; border-radius: 8px; border: 1px solid var(--border); background: var(--input-bg);
       color: var(--text-muted); font-size: .68rem; font-weight: 600; cursor: pointer; text-align: center; }
     .seat-tab.active { border-color: var(--accent); color: var(--accent); background: rgba(212,175,55,.1); }
@@ -114,6 +114,20 @@
     .setup-grid { display: grid; gap: 10px; }
     .setup-seat { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; }
     .setup-seat .seat-label { font-size: .75rem; color: var(--text-muted); width: 24px; font-weight: 700; }
+    .player-count-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .mode-row { display: grid; gap: 8px; }
+    .count-btn, .mode-btn { padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--input-bg);
+      color: var(--text-muted); font-size: .78rem; font-weight: 600; cursor: pointer; text-align: center; line-height: 1.35; }
+    .count-btn.active, .mode-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(212,175,55,.1); }
+    .seat-tab.sit-out { opacity: .45; border-style: dashed; }
+    .win-preview { background: var(--input-bg); border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px; font-size: .75rem; margin-top: 10px; min-height: 48px; }
+    .win-preview .pay-line { padding: 3px 0; }
+    .btn-ron { background: linear-gradient(135deg, #2563eb, #1d4ed8); color: #fff; }
+    .btn-tsumo { background: linear-gradient(135deg, #7c3aed, #6d28d9); color: #fff; }
+    .win-type-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .wind-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .btn-tsumo.active, .btn-ron.active { box-shadow: 0 0 0 2px var(--accent); opacity: 1; }
     .chip-input-row { display: grid; grid-template-columns: 1fr 80px; gap: 8px; align-items: end; }
     .player-list { display: flex; flex-direction: column; gap: 8px; }
     .player-item { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center;
@@ -195,6 +209,18 @@
     </div>
   </div>
 
+  <div class="modal-overlay hidden" id="winModal">
+    <div class="modal">
+      <h3 id="winModalTitle">和了入力</h3>
+      <div id="winModalBody"></div>
+      <div class="win-preview" id="winPreview">支払いプレビュー</div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="winModalCancel">キャンセル</button>
+        <button type="button" class="btn btn-primary" id="winModalApply">反映する</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
   <script type="module">
@@ -219,8 +245,13 @@
 
     const INITIAL_SCORE = 25000;
     const CHIP_VALUE = 5000;
-    const SEATS = ["東", "南", "西", "北"];
+    const SEATS_4 = ["東", "南", "西", "北"];
+    const SEATS_3 = ["東", "南", "西"];
     const CHIP_QUICK = [1, 2, 3, 4, 5];
+    const WIN_PRESETS_DEALER = [1500, 3000, 6000, 12000, 18000, 24000];
+    const WIN_PRESETS_CHILD = [1000, 2000, 4000, 8000, 12000, 18000];
+    const MODE_LABELS = { yonma: "4人麻雀", sanma3: "3人3打ち", sanma4: "4人3打ち" };
+    let winModalType = "tsumo";
     const RANK_MEDALS = ["🥇", "🥈", "🥉"];
     const ICON_OPTIONS = ["🀄", "🐉", "🐯", "🦅", "⭐", "🔥", "💎", "🎯", "東", "南", "西", "北", "郎", "花", "月", "雪"];
     const COLOR_OPTIONS = ["#d4af37", "#6ee7a0", "#f87171", "#c084fc", "#60a5fa", "#fb923c", "#f472b6", "#34d399"];
@@ -244,15 +275,313 @@
     let selectedIcon = ICON_OPTIONS[0];
     let selectedColor = COLOR_OPTIONS[0];
 
-    function defaultActiveHanchan() {
+    function getSeats(seatCount) {
+      return seatCount === 3 ? SEATS_3 : SEATS_4;
+    }
+
+    function getGameMode(h) {
+      if (h?.gameMode === "yonma" || h?.gameMode === "sanma3" || h?.gameMode === "sanma4") return h.gameMode;
+      if (h?.playerCount === 3) return "sanma3";
+      return "yonma";
+    }
+
+    function getPlayerCount(h) {
+      return getGameMode(h) === "sanma3" ? 3 : 4;
+    }
+
+    function getModeLabel(mode) {
+      return MODE_LABELS[mode] || MODE_LABELS.yonma;
+    }
+
+    function isDealerSeat(seat, h) {
+      if (h && getGameMode(h) === "sanma4") return seat.seat === getDealerWind(h);
+      return seat.seat === "東";
+    }
+
+    function isDealerIndex(idx, h) {
+      return isDealerSeat(h.seats[idx], h);
+    }
+
+    function getDealerWind(h) {
+      if (getGameMode(h) !== "sanma4") return "東";
+      if (SEATS_4.includes(h?.dealerWind)) return h.dealerWind;
+      if (Number.isInteger(h?.sitOutIndex) && h.sitOutIndex >= 0 && h.sitOutIndex < 4) {
+        return SEATS_4[(h.sitOutIndex + 1) % 4];
+      }
+      return "東";
+    }
+
+    function getSitOutIndex(h) {
+      if (getGameMode(h) !== "sanma4") return null;
+      const dealerIdx = SEATS_4.indexOf(getDealerWind(h));
+      return (dealerIdx + 3) % 4;
+    }
+
+    function getSitOutWind(h) {
+      const idx = getSitOutIndex(h);
+      return idx === null ? null : SEATS_4[idx];
+    }
+
+    function getSanma4RoleSummary(h) {
+      const dealer = getDealerWind(h);
+      const sitOut = getSitOutWind(h);
+      const children = getActiveSeatIndices(h)
+        .filter(i => !isDealerIndex(i, h))
+        .map(i => h.seats[i].seat);
+      return `親：${dealer} / 子：${children.join("・")}（${sitOut}は休み）`;
+    }
+
+    function getActiveSeatIndices(h) {
+      const all = h.seats.map((_, i) => i);
+      if (getGameMode(h) === "sanma4") {
+        const sitOut = getSitOutIndex(h);
+        return all.filter(i => i !== sitOut);
+      }
+      return all;
+    }
+
+    function isSanmaMode(h) {
+      const m = getGameMode(h);
+      return m === "sanma3" || m === "sanma4";
+    }
+
+    function seatOptionLabel(seat, idx, h) {
+      const active = getActiveSeatIndices(h).includes(idx);
+      const tag = !active ? "（休み）" : isDealerSeat(seat, h) ? "（親）" : "";
+      return `${seat.playerName}（${seat.seat}）${tag}`;
+    }
+
+    function calcTsumoPayments(winnerIdx, total, h) {
+      const payers = getActiveSeatIndices(h).filter(i => i !== winnerIdx);
+      const winner = h.seats[winnerIdx];
+      const payments = [];
+
+      if (isSanmaMode(h)) {
+        if (isDealerSeat(winner, h)) {
+          let remaining = total;
+          payers.forEach((idx, i) => {
+            const amt = i === payers.length - 1 ? remaining : Math.floor(total / payers.length);
+            payments.push({ fromIdx: idx, toIdx: winnerIdx, amount: amt });
+            remaining -= amt;
+          });
+        } else {
+          const dealerIdx = payers.find(i => isDealerIndex(i, h));
+          const otherChild = payers.find(i => i !== dealerIdx);
+          const childPay = Math.ceil((total / 3) / 1000) * 1000;
+          const dealerPay = total - childPay;
+          if (dealerIdx !== undefined) payments.push({ fromIdx: dealerIdx, toIdx: winnerIdx, amount: dealerPay });
+          if (otherChild !== undefined) payments.push({ fromIdx: otherChild, toIdx: winnerIdx, amount: childPay });
+        }
+      } else {
+        if (isDealerSeat(winner, h)) {
+          let remaining = total;
+          payers.forEach((idx, i) => {
+            const amt = i === payers.length - 1 ? remaining : Math.floor(total / payers.length);
+            payments.push({ fromIdx: idx, toIdx: winnerIdx, amount: amt });
+            remaining -= amt;
+          });
+        } else {
+          const dealerIdx = payers.find(i => isDealerIndex(i, h));
+          const others = payers.filter(i => i !== dealerIdx);
+          const dealerPay = Math.floor(total / 2);
+          let remaining = total - dealerPay;
+          if (dealerIdx !== undefined) payments.push({ fromIdx: dealerIdx, toIdx: winnerIdx, amount: dealerPay });
+          others.forEach((idx, i) => {
+            const amt = i === others.length - 1 ? remaining : Math.floor(remaining / others.length);
+            payments.push({ fromIdx: idx, toIdx: winnerIdx, amount: amt });
+            remaining -= amt;
+          });
+        }
+      }
+      return payments;
+    }
+
+    function calcRonPayments(winnerIdx, loserIdx, total) {
+      return [{ fromIdx: loserIdx, toIdx: winnerIdx, amount: total }];
+    }
+
+    function formatPaymentsPreview(payments, h) {
+      if (!payments?.length) return "支払いプレビュー";
+      return payments.map(p => {
+        const from = h.seats[p.fromIdx];
+        const to = h.seats[p.toIdx];
+        return `<div class="pay-line">${escapeHtml(from.playerName)} → ${escapeHtml(to.playerName)} ${formatScore(p.amount)}点</div>`;
+      }).join("");
+    }
+
+    function applyScorePayments(payments, labelPrefix) {
+      for (const p of payments) {
+        const from = activeHanchan.seats[p.fromIdx];
+        if (from.score < p.amount) {
+          showToast(`${from.playerName}の持ち点が足りません`, true);
+          return false;
+        }
+      }
+      const winnerIdx = payments[0]?.toIdx;
+      const winner = activeHanchan.seats[winnerIdx];
+      const total = payments.reduce((s, p) => s + p.amount, 0);
+      const parts = [];
+      payments.forEach(p => {
+        const from = activeHanchan.seats[p.fromIdx];
+        const to = activeHanchan.seats[p.toIdx];
+        from.score -= p.amount;
+        to.score += p.amount;
+        parts.push(`${from.playerName}→${to.playerName}${formatScore(p.amount)}`);
+      });
+      activeHanchan.history.push({
+        type: "score",
+        desc: `${labelPrefix} ${winner.playerName} ${formatScore(total)}点（${parts.join(" / ")}）`,
+        time: nowTime()
+      });
+      return true;
+    }
+
+    function getWinPaymentsFromForm() {
+      const winnerIdx = parseInt(document.getElementById("winWinner")?.value, 10);
+      const total = parseInt(document.getElementById("winAmount")?.value, 10);
+      if (!Number.isInteger(winnerIdx) || !Number.isInteger(total) || total <= 0) return null;
+      if (winModalType === "tsumo") return calcTsumoPayments(winnerIdx, total, activeHanchan);
+      const loserIdx = parseInt(document.getElementById("winLoser")?.value, 10);
+      if (!Number.isInteger(loserIdx) || loserIdx === winnerIdx) return null;
+      return calcRonPayments(winnerIdx, loserIdx, total);
+    }
+
+    function updateWinPreview() {
+      const el = document.getElementById("winPreview");
+      if (!el) return;
+      const payments = getWinPaymentsFromForm();
+      el.innerHTML = payments ? formatPaymentsPreview(payments, activeHanchan) : "和了者・点数を入力してください";
+    }
+
+    function getWinAmountPresets(winnerIdx, h) {
+      if (!Number.isInteger(winnerIdx)) return WIN_PRESETS_CHILD;
+      return isDealerIndex(winnerIdx, h) ? WIN_PRESETS_DEALER : WIN_PRESETS_CHILD;
+    }
+
+    function renderWinPresetButtons(winnerIdx) {
+      const container = document.getElementById("winPresets");
+      if (!container) return;
+      const presets = getWinAmountPresets(winnerIdx, activeHanchan);
+      container.innerHTML = presets.map(v =>
+        `<button type="button" class="quick-btn win-preset" data-amt="${v}">${formatScore(v)}</button>`).join("");
+      bindWinPresetButtons();
+    }
+
+    function bindWinPresetButtons() {
+      document.querySelectorAll(".win-preset").forEach(b => b.addEventListener("click", () => {
+        const el = document.getElementById("winAmount");
+        if (el) { el.value = b.dataset.amt; updateWinPreview(); }
+      }));
+    }
+
+    function renderWinModalBody() {
+      const h = activeHanchan;
+      const active = getActiveSeatIndices(h);
+      const defaultWinner = active.includes(activeSeat) ? activeSeat : active[0];
+      const defaultLoser = active.find(i => i !== defaultWinner) ?? active[0];
+      const winnerOpts = active.map(i =>
+        `<option value="${i}" ${i === defaultWinner ? "selected" : ""}>${escapeHtml(seatOptionLabel(h.seats[i], i, h))}</option>`).join("");
+      const loserOpts = active.map(i =>
+        `<option value="${i}" ${i === defaultLoser ? "selected" : ""}>${escapeHtml(seatOptionLabel(h.seats[i], i, h))}</option>`).join("");
+      const presets = getWinAmountPresets(defaultWinner, h).map(v =>
+        `<button type="button" class="quick-btn win-preset" data-amt="${v}">${formatScore(v)}</button>`).join("");
+      document.getElementById("winModalBody").innerHTML = `
+        <div class="win-type-row">
+          <button type="button" class="btn btn-tsumo ${winModalType === "tsumo" ? "active" : ""}" id="winTypeTsumo">ツモ</button>
+          <button type="button" class="btn btn-ron ${winModalType === "ron" ? "active" : ""}" id="winTypeRon">ロン</button>
+        </div>
+        <div class="setup-grid">
+          <div><label>和了者</label><select id="winWinner">${winnerOpts}</select></div>
+          ${winModalType === "ron" ? `<div><label>放銃者</label><select id="winLoser">${loserOpts}</select></div>` : ""}
+          <div class="amount-row">
+            <div><label>和了点数（合計）</label><input type="number" id="winAmount" min="0" step="100" placeholder="8000"></div>
+            <button type="button" class="btn-clear" id="winAmountClear">クリア</button>
+          </div>
+        </div>
+        <div class="quick-buttons" id="winPresets" style="margin-top:8px">${presets}</div>`;
+    }
+
+    function bindWinModalEvents() {
+      document.getElementById("winTypeTsumo")?.addEventListener("click", () => {
+        if (winModalType === "tsumo") return;
+        winModalType = "tsumo";
+        document.getElementById("winModalTitle").textContent = "ツモ和了";
+        renderWinModalBody();
+        bindWinModalEvents();
+        updateWinPreview();
+      });
+      document.getElementById("winTypeRon")?.addEventListener("click", () => {
+        if (winModalType === "ron") return;
+        winModalType = "ron";
+        document.getElementById("winModalTitle").textContent = "ロン和了";
+        renderWinModalBody();
+        bindWinModalEvents();
+        updateWinPreview();
+      });
+      document.getElementById("winWinner")?.addEventListener("change", e => {
+        renderWinPresetButtons(parseInt(e.target.value, 10));
+        updateWinPreview();
+      });
+      document.getElementById("winLoser")?.addEventListener("change", updateWinPreview);
+      document.getElementById("winAmount")?.addEventListener("input", updateWinPreview);
+      document.getElementById("winAmountClear")?.addEventListener("click", () => {
+        const el = document.getElementById("winAmount");
+        if (el) { el.value = ""; updateWinPreview(); }
+      });
+      bindWinPresetButtons();
+    }
+
+    function openWinModal(type = "tsumo") {
+      winModalType = type;
+      document.getElementById("winModalTitle").textContent = type === "tsumo" ? "ツモ和了" : "ロン和了";
+      renderWinModalBody();
+      bindWinModalEvents();
+      document.getElementById("winModal").classList.remove("hidden");
+      updateWinPreview();
+    }
+
+    function closeWinModal() {
+      document.getElementById("winModal")?.classList.add("hidden");
+    }
+
+    function applyWinModal() {
+      const payments = getWinPaymentsFromForm();
+      if (!payments?.length) {
+        showToast("和了者・点数を正しく入力してください", true);
+        return;
+      }
+      const total = payments.reduce((s, p) => s + p.amount, 0);
+      const label = winModalType === "tsumo" ? "ツモ" : "ロン";
+      pushUndo();
+      if (!applyScorePayments(payments, label)) {
+        undoStack.pop();
+        return;
+      }
+      closeWinModal();
+      saveActiveHanchan();
+      renderHanchan();
+      showToast(`${label} ${formatScore(total)}点を反映しました`);
+    }
+
+    function emptySeat(seat, i) {
+      return {
+        seat, playerId: "", playerName: "", icon: "🀄", color: COLOR_OPTIONS[i % 8],
+        score: INITIAL_SCORE, chips: 0
+      };
+    }
+
+    function defaultActiveHanchan(gameMode = "yonma") {
+      const mode = ["yonma", "sanma3", "sanma4"].includes(gameMode) ? gameMode : "yonma";
+      const seatCount = mode === "sanma3" ? 3 : 4;
       return {
         gameStarted: false,
+        gameMode: mode,
+        playerCount: seatCount,
+        sitOutIndex: null,
+        dealerWind: mode === "sanma4" ? "東" : null,
         initialScore: INITIAL_SCORE,
         initialChipCount: 0,
-        seats: SEATS.map((seat, i) => ({
-          seat, playerId: "", playerName: "", icon: "🀄", color: COLOR_OPTIONS[i % 8],
-          score: INITIAL_SCORE, chips: 0
-        })),
+        seats: getSeats(seatCount).map((seat, i) => emptySeat(seat, i)),
         history: [],
         revision: 0
       };
@@ -276,7 +605,24 @@
     }
 
     function normalizeActiveHanchan(raw) {
-      const base = { ...defaultActiveHanchan(), ...raw };
+      const mode = getGameMode(raw);
+      const seatCount = mode === "sanma3" ? 3 : 4;
+      const base = { ...defaultActiveHanchan(mode), ...raw };
+      base.gameMode = mode;
+      base.playerCount = seatCount;
+      if (mode === "sanma4") {
+        if (SEATS_4.includes(raw?.dealerWind)) {
+          base.dealerWind = raw.dealerWind;
+        } else if (Number.isInteger(raw?.sitOutIndex) && raw.sitOutIndex >= 0 && raw.sitOutIndex < 4) {
+          base.dealerWind = SEATS_4[(raw.sitOutIndex + 1) % 4];
+        } else {
+          base.dealerWind = "東";
+        }
+        base.sitOutIndex = null;
+      } else {
+        base.dealerWind = null;
+        base.sitOutIndex = null;
+      }
       if (Array.isArray(raw?.initialChips)) {
         base.initialChipCount = Number(raw.initialChips[0]) || 0;
       } else if (Number.isFinite(raw?.initialChipCount)) {
@@ -285,6 +631,20 @@
         base.initialChipCount = 0;
       }
       delete base.initialChips;
+      const labels = getSeats(seatCount);
+      if (base.gameStarted && Array.isArray(base.seats)) {
+        base.seats = base.seats.slice(0, seatCount);
+        while (base.seats.length < seatCount) {
+          base.seats.push(emptySeat(labels[base.seats.length], base.seats.length));
+        }
+      } else {
+        base.seats = labels.map((seat, i) => ({
+          ...emptySeat(seat, i),
+          ...(base.seats?.[i] || {}),
+          seat
+        }));
+      }
+      if (activeSeat >= seatCount) activeSeat = 0;
       return base;
     }
 
@@ -593,7 +953,7 @@
           }).join("")}</div>` : ""}
           ${hanchans.map((h, i) => `
             <div class="hanchan-card">
-              <div class="title">第${i + 1}半荘 · ${h.finishedAt || ""}${Number.isFinite(h.initialChipCount) ? ` · 初期チップ${h.initialChipCount}枚` : ""}</div>
+              <div class="title">第${i + 1}半荘 · ${getModeLabel(h.gameMode || (h.playerCount === 3 ? "sanma3" : "yonma"))} · ${h.finishedAt || ""}${Number.isFinite(h.initialChipCount) ? ` · 初期チップ${h.initialChipCount}枚` : ""}</div>
               ${(h.results || []).map(r => {
                 const chipDelta = getChipDelta(r, h);
                 return `
@@ -675,7 +1035,11 @@
 
     function renderHanchanSetup() {
       const plist = getPlayerList();
-      const opts = (sel, idx) => {
+      const gameMode = getGameMode(activeHanchan);
+      const playerCount = getPlayerCount(activeHanchan);
+      const seatLabels = getSeats(playerCount);
+      const startLabel = gameMode === "sanma3" ? "3人" : gameMode === "sanma4" ? "4人（抜け番あり）" : "4人";
+      const opts = (idx) => {
         const cur = activeHanchan.seats[idx]?.playerId || "";
         return `<option value="">-- 選択 --</option>` + plist.map(p =>
           `<option value="${p.id}" ${p.id === cur ? "selected" : ""}>${escapeHtml(p.icon)} ${escapeHtml(p.name)}</option>`).join("");
@@ -683,46 +1047,82 @@
       return `
         <div class="panel">
           <h2>対局開始設定</h2>
-          <p class="panel-desc">登録プレイヤーから4人を選び、初期点数・チップを設定</p>
+          <p class="panel-desc">ルール・プレイヤー・初期点数・チップを設定</p>
           <div class="setup-grid">
+            <div>
+              <label>ルール</label>
+              <div class="mode-row">
+                <button type="button" class="mode-btn ${gameMode === "yonma" ? "active" : ""}" data-mode="yonma">4人麻雀（四人打ち）</button>
+                <button type="button" class="mode-btn ${gameMode === "sanma3" ? "active" : ""}" data-mode="sanma3">3人3打ち（3人サンマ）</button>
+                <button type="button" class="mode-btn ${gameMode === "sanma4" ? "active" : ""}" data-mode="sanma4">4人3打ち（抜け番ありサンマ）</button>
+              </div>
+            </div>
             <div><label>初期持ち点（全員共通）</label><input type="number" id="setupInitialScore" value="${activeHanchan.initialScore}" min="1000" step="1000"></div>
             <div><label>初期チップ枚数（全員共通）</label><input type="number" id="setupInitialChipCount" value="${activeHanchan.initialChipCount ?? 0}" min="0" step="1"></div>
-            ${SEATS.map((s, i) => `
+            ${seatLabels.map((s, i) => `
               <div class="setup-seat">
                 <span class="seat-label">${s}</span>
-                <select id="setupPlayer${i}">${opts(s, i)}</select>
+                <select id="setupPlayer${i}">${opts(i)}</select>
               </div>`).join("")}
           </div>
-          <button type="button" class="btn btn-primary" id="startGameBtn" style="margin-top:14px">対局開始</button>
+          <button type="button" class="btn btn-primary" id="startGameBtn" style="margin-top:14px">対局開始（${startLabel}）</button>
         </div>`;
     }
 
     function bindHanchanSetup() {
+      document.querySelectorAll(".mode-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const mode = btn.dataset.mode;
+          if (mode === getGameMode(activeHanchan)) return;
+          const preserved = activeHanchan.seats.map(s => s.playerId);
+          const seatCount = mode === "sanma3" ? 3 : 4;
+          activeHanchan.gameMode = mode;
+          activeHanchan.playerCount = seatCount;
+          activeHanchan.dealerWind = mode === "sanma4" ? "東" : null;
+          activeHanchan.sitOutIndex = null;
+          activeHanchan.seats = getSeats(seatCount).map((seat, i) => ({
+            ...emptySeat(seat, i),
+            playerId: preserved[i] || ""
+          }));
+          activeSeat = 0;
+          renderHanchan();
+        });
+      });
       document.getElementById("startGameBtn")?.addEventListener("click", startGame);
     }
 
     async function startGame() {
       const plist = getPlayerList();
-      if (plist.length < 4) { showToast("プレイヤーを4人以上登録してください", true); return; }
-      const ids = SEATS.map((_, i) => document.getElementById(`setupPlayer${i}`).value);
-      if (ids.some(id => !id)) { showToast("4人すべて選択してください", true); return; }
-      if (new Set(ids).size !== 4) { showToast("同じプレイヤーを重複選択できません", true); return; }
+      const gameMode = getGameMode(activeHanchan);
+      const playerCount = getPlayerCount(activeHanchan);
+      const seatLabels = getSeats(playerCount);
+      if (plist.length < playerCount) {
+        showToast(`プレイヤーを${playerCount}人以上登録してください`, true);
+        return;
+      }
+      const ids = seatLabels.map((_, i) => document.getElementById(`setupPlayer${i}`).value);
+      if (ids.some(id => !id)) { showToast(`${playerCount}人すべて選択してください`, true); return; }
+      if (new Set(ids).size !== playerCount) { showToast("同じプレイヤーを重複選択できません", true); return; }
 
       const initScore = parseInt(document.getElementById("setupInitialScore").value, 10) || INITIAL_SCORE;
       const initChipCount = Math.max(0, parseInt(document.getElementById("setupInitialChipCount").value, 10) || 0);
 
       activeHanchan = {
         gameStarted: true,
+        gameMode,
+        playerCount,
+        dealerWind: gameMode === "sanma4" ? "東" : null,
+        sitOutIndex: null,
         initialScore: initScore,
         initialChipCount: initChipCount,
-        seats: SEATS.map((seat, i) => {
+        seats: seatLabels.map((seat, i) => {
           const p = registeredPlayers[ids[i]];
           return {
             seat, playerId: p.id, playerName: p.name, icon: p.icon, color: p.color,
             score: initScore, chips: initChipCount
           };
         }),
-        history: [{ type: "info", desc: `対局開始（初期${formatScore(initScore)}点 / チップ${initChipCount}枚×全員）`, time: nowTime() }],
+        history: [{ type: "info", desc: `${getModeLabel(gameMode)} 対局開始（初期${formatScore(initScore)}点 / チップ${initChipCount}枚×全員）`, time: nowTime() }],
         revision: 0
       };
       hanchanSubView = "play";
@@ -733,20 +1133,43 @@
     }
 
     function renderHanchanPlay() {
-      const seat = activeHanchan.seats[activeSeat];
+      const seats = activeHanchan.seats;
+      const playerCount = seats.length;
+      const gameMode = getGameMode(activeHanchan);
+      const seat = seats[activeSeat];
       const delta = seat.score - activeHanchan.initialScore;
       const dc = delta > 0 ? "plus" : delta < 0 ? "minus" : "";
+      const sitOut = gameMode === "sanma4" ? getSitOutIndex(activeHanchan) : null;
+      const dealerWind = gameMode === "sanma4" ? getDealerWind(activeHanchan) : null;
+      const activeIndices = gameMode === "sanma4" ? getActiveSeatIndices(activeHanchan) : null;
+      const opponentOpts = (excludeIdx) => {
+        const indices = activeIndices ?? seats.map((_, i) => i);
+        return indices.filter(i => i !== excludeIdx).map(i => {
+          const o = seats[i];
+          return `<option value="${i}">${escapeHtml(o.playerName)}（${o.seat}）</option>`;
+        }).join("");
+      };
       return `
         <div class="total-bar">
-          <div><span>合計持ち点</span> <strong>${formatScore(activeHanchan.seats.reduce((s, p) => s + p.score, 0))}</strong></div>
-          <div><span>合計チップ</span> <strong>${activeHanchan.seats.reduce((s, p) => s + p.chips, 0)}</strong></div>
+          <div><span>${getModeLabel(gameMode)}</span></div>
+          <div><span>合計持ち点</span> <strong>${formatScore(seats.reduce((s, p) => s + p.score, 0))}</strong></div>
+          <div><span>合計チップ</span> <strong>${seats.reduce((s, p) => s + p.chips, 0)}</strong></div>
           <div id="balanceStatus"></div>
         </div>
-        <div class="seat-tabs">${activeHanchan.seats.map((s, i) =>
-          `<button type="button" class="seat-tab ${i === activeSeat ? "active" : ""}" data-seat="${i}">${escapeHtml(s.icon)} ${escapeHtml(s.playerName)}<br><small>${s.seat}</small></button>`).join("")}</div>
+        ${gameMode === "sanma4" ? `
+        <div class="panel">
+          <h2>親番（この局）</h2>
+          <p class="panel-desc">${escapeHtml(getSanma4RoleSummary(activeHanchan))}</p>
+          <div class="wind-row">
+            ${SEATS_4.map(w =>
+              `<button type="button" class="mode-btn ${dealerWind === w ? "active" : ""}" data-dealer-wind="${w}">${w}</button>`).join("")}
+          </div>
+        </div>` : ""}
+        <div class="seat-tabs" style="grid-template-columns:repeat(${playerCount},1fr)">${seats.map((s, i) =>
+          `<button type="button" class="seat-tab ${i === activeSeat ? "active" : ""}${gameMode === "sanma4" && i === sitOut ? " sit-out" : ""}" data-seat="${i}">${escapeHtml(s.icon)} ${escapeHtml(s.playerName)}<br><small>${s.seat}${gameMode === "sanma4" && i === sitOut ? " · 休み" : isDealerSeat(s, activeHanchan) && getActiveSeatIndices(activeHanchan).includes(i) ? " · 親" : ""}</small></button>`).join("")}</div>
         <div class="player-hero">
           <div class="avatar-lg" style="background:${escapeHtml(seat.color)}">${escapeHtml(seat.icon)}</div>
-          <div style="font-weight:700">${escapeHtml(seat.playerName)}（${seat.seat}）</div>
+          <div style="font-weight:700">${escapeHtml(seat.playerName)}（${seat.seat}）${gameMode === "sanma4" && activeSeat === sitOut ? " · 休み" : isDealerSeat(seat, activeHanchan) && getActiveSeatIndices(activeHanchan).includes(activeSeat) ? " · 親" : ""}</div>
           <div class="hero-stats">
             <div><div class="hero-stat-label">持ち点</div><div class="hero-stat-value">${formatScore(seat.score)}</div></div>
             <div><div class="hero-stat-label">収支</div><div class="hero-stat-value ${dc}">${formatDelta(delta)}</div></div>
@@ -754,10 +1177,17 @@
           </div>
         </div>
         <div class="panel">
-          <h2>点数移動</h2>
+          <h2>和了入力</h2>
+          <p class="panel-desc">ツモ・ロンの点数を自動計算して反映（サンマ子ツモは親2：子1・1,000点切上）</p>
+          <div class="btn-row">
+            <button type="button" class="btn btn-tsumo" id="openTsumoBtn">ツモ</button>
+            <button type="button" class="btn btn-ron" id="openRonBtn">ロン</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>点数移動（手動）</h2>
           <div class="transfer-form">
-            <div><label>相手</label><select id="scoreOpponent">${activeHanchan.seats.map((o, idx) =>
-              idx !== activeSeat ? `<option value="${idx}">${escapeHtml(o.playerName)}（${o.seat}）</option>` : "").join("")}</select></div>
+            <div><label>相手</label><select id="scoreOpponent">${opponentOpts(activeSeat)}</select></div>
             <div class="amount-row">
               <div><label>点数</label><input type="number" id="scoreAmount" min="0" placeholder="3900"></div>
               <button type="button" class="btn-clear" data-clear="scoreAmount">クリア</button>
@@ -776,8 +1206,7 @@
         <div class="panel">
           <h2>チップ移動</h2>
           <div class="transfer-form">
-            <div><label>相手</label><select id="chipOpponent">${activeHanchan.seats.map((o, idx) =>
-              idx !== activeSeat ? `<option value="${idx}">${escapeHtml(o.playerName)}（${o.seat}）</option>` : "").join("")}</select></div>
+            <div><label>相手</label><select id="chipOpponent">${opponentOpts(activeSeat)}</select></div>
             <div class="amount-row">
               <div><label>枚数</label><input type="number" id="chipAmount" min="0" placeholder="5"></div>
               <button type="button" class="btn-clear" data-clear="chipAmount">クリア</button>
@@ -801,7 +1230,8 @@
     }
 
     function bindHanchanPlay() {
-      const expected = activeHanchan.initialScore * 4;
+      const n = activeHanchan.seats.length;
+      const expected = activeHanchan.initialScore * n;
       const total = activeHanchan.seats.reduce((s, p) => s + p.score, 0);
       const bal = document.getElementById("balanceStatus");
       if (bal) bal.innerHTML = total === expected
@@ -825,6 +1255,18 @@
       document.querySelector("[data-act=chip-recv]")?.addEventListener("click", () => doTransfer("chip", false));
       document.getElementById("undoBtn")?.addEventListener("click", undo);
       document.getElementById("settleHanchanBtn")?.addEventListener("click", settleHanchan);
+      document.getElementById("openTsumoBtn")?.addEventListener("click", () => openWinModal("tsumo"));
+      document.getElementById("openRonBtn")?.addEventListener("click", () => openWinModal("ron"));
+      document.querySelectorAll("[data-dealer-wind]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const wind = btn.dataset.dealerWind;
+          if (wind === getDealerWind(activeHanchan)) return;
+          activeHanchan.dealerWind = wind;
+          activeHanchan.sitOutIndex = null;
+          saveActiveHanchan();
+          renderHanchan();
+        });
+      });
     }
 
     function doTransfer(type, pay) {
@@ -868,13 +1310,15 @@
 
     async function settleHanchan() {
       if (!activeHanchan.gameStarted) return;
-      const expected = activeHanchan.initialScore * 4;
+      const n = activeHanchan.seats.length;
+      const expected = activeHanchan.initialScore * n;
       const total = activeHanchan.seats.reduce((s, p) => s + p.score, 0);
       if (total !== expected) {
         if (!confirm(`持ち点合計が${formatDelta(total - expected)}ずれています。\n半荘精算を続行しますか？`)) return;
       }
       if (!confirm("半荘精算して今日のセットに追加しますか？\nスコアは次半荘用にリセットされます。")) return;
 
+      const gameMode = getGameMode(activeHanchan);
       const initChips = activeHanchan.initialChipCount ?? 0;
       const results = activeHanchan.seats.map(s => ({
         playerId: s.playerId, playerName: s.playerName, icon: s.icon, color: s.color,
@@ -886,6 +1330,10 @@
       }));
       const hanchan = {
         id: genHanchanId(), finishedAt: nowTime(),
+        gameMode,
+        playerCount: getPlayerCount(activeHanchan),
+        dealerWind: gameMode === "sanma4" ? getDealerWind(activeHanchan) : null,
+        sitOutIndex: null,
         initialScore: activeHanchan.initialScore,
         initialChipCount: initChips,
         results, history: activeHanchan.history
@@ -893,7 +1341,7 @@
       if (!dayData.hanchans) dayData.hanchans = [];
       dayData.hanchans.push(hanchan);
 
-      activeHanchan = defaultActiveHanchan();
+      activeHanchan = defaultActiveHanchan(gameMode);
       hanchanSubView = "setup";
       undoStack = [];
 
@@ -997,6 +1445,11 @@
     document.getElementById("playerModalSave").addEventListener("click", savePlayerModal);
     document.getElementById("playerModal").addEventListener("click", e => {
       if (e.target.id === "playerModal") closePlayerModal();
+    });
+    document.getElementById("winModalCancel")?.addEventListener("click", closeWinModal);
+    document.getElementById("winModalApply")?.addEventListener("click", applyWinModal);
+    document.getElementById("winModal")?.addEventListener("click", e => {
+      if (e.target.id === "winModal") closeWinModal();
     });
 
     loadLocal();
